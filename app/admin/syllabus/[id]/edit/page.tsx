@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Save } from 'lucide-react'
+import RichTextEditor from '@/components/RichTextEditor'
 
 interface Category { id: string; name: string }
 
@@ -123,11 +124,20 @@ export default function EditSyllabusPage({ params }: { params: { id: string } })
         </div>
         <div>
           <label className="block text-sm text-gray-300 mb-2">Summary</label>
-          <textarea rows={3} value={form.summary} onChange={(e) => setForm({ ...form, summary: e.target.value })} className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white" />
+          <RichTextEditor
+            value={form.summary}
+            onChange={(value) => setForm({ ...form, summary: value })}
+            placeholder="Add summary content..."
+          />
         </div>
         <div>
           <label className="block text-sm text-gray-300 mb-2">Content / Details</label>
-          <textarea rows={8} value={form.content} onChange={(e) => setForm({ ...form, content: e.target.value })} className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white" />
+          <RichTextEditor
+            value={form.content}
+            onChange={(value) => setForm({ ...form, content: value })}
+            placeholder="Write detailed content..."
+            minHeightClassName="min-h-[220px]"
+          />
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-300">
           <input type="checkbox" checked={form.isLatest} onChange={(e) => setForm({ ...form, isLatest: e.target.checked })} />

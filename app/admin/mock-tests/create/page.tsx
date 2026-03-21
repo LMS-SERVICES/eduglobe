@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
+import RichTextEditor from '@/components/RichTextEditor'
 
 type Option = { option: string }
 type Question = { question: string; questionImageUrl: string; marks: number; negativeMarks: number; correctOptionIndex: number; options: Option[] }
@@ -35,7 +36,6 @@ export default function CreateMockTestPage() {
   const [error, setError] = useState('')
   const [currentStep, setCurrentStep] = useState(1)
   const [draftLoaded, setDraftLoaded] = useState(false)
-  const instructionsEditorRef = useRef<HTMLDivElement | null>(null)
   const [form, setForm] = useState<FormState>({
     title: '',
     description: '',
@@ -70,13 +70,6 @@ export default function CreateMockTestPage() {
   useEffect(() => {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ form, sections, currentStep }))
   }, [form, sections, currentStep])
-
-  useEffect(() => {
-    if (!instructionsEditorRef.current) return
-    if (instructionsEditorRef.current.innerHTML !== form.instructions) {
-      instructionsEditorRef.current.innerHTML = form.instructions || ''
-    }
-  }, [form.instructions])
 
   const saveDraft = () => {
     localStorage.setItem(DRAFT_KEY, JSON.stringify({ form, sections, currentStep }))
@@ -203,20 +196,12 @@ export default function CreateMockTestPage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Instructions</label>
-              <div className="rounded-lg border border-dark-700 overflow-hidden">
-                <div className="flex items-center gap-2 px-3 py-2 bg-dark-900 border-b border-dark-700">
-                  <button type="button" onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bold</button>
-                  <button type="button" onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Italic</button>
-                  <button type="button" onClick={() => document.execCommand('insertUnorderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bullet</button>
-                  <button type="button" onClick={() => document.execCommand('insertOrderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Numbered</button>
-                </div>
-                <div
-                  ref={instructionsEditorRef}
-                  contentEditable
-                  className="min-h-[180px] px-4 py-3 bg-dark-900 text-white focus:outline-none"
-                  onInput={(e) => setForm({ ...form, instructions: (e.target as HTMLDivElement).innerHTML })}
-                />
-              </div>
+              <RichTextEditor
+                value={form.instructions}
+                onChange={(value) => setForm({ ...form, instructions: value })}
+                placeholder="Write exam instructions, rules, and important notes..."
+                minHeightClassName="min-h-[220px]"
+              />
               <p className="text-xs text-gray-500 mt-1">Rich text enabled for instructions.</p>
             </div>
             <div>

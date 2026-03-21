@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
+import RichTextEditor from '@/components/RichTextEditor'
 
 export default function EditQuizPage() {
   const { id } = useParams()
@@ -13,7 +14,6 @@ export default function EditQuizPage() {
   const [error, setError] = useState('')
   const [form, setForm] = useState({ title: '', description: '', details: '', thumbnail: '', price: 0, expiryDate: '', generateCertificate: false, isPublished: false })
   const [questionCount, setQuestionCount] = useState(0)
-  const detailsEditorRef = useRef<HTMLDivElement | null>(null)
 
   useEffect(() => {
     fetch(`/api/admin/quizzes/${id}`)
@@ -35,13 +35,6 @@ export default function EditQuizPage() {
       .catch(console.error)
       .finally(() => setLoading(false))
   }, [id])
-
-  useEffect(() => {
-    if (!detailsEditorRef.current) return
-    if (detailsEditorRef.current.innerHTML !== form.details) {
-      detailsEditorRef.current.innerHTML = form.details || ''
-    }
-  }, [form.details])
 
   const handleSubmit = async (e: React.FormEvent, forceDraft = false) => {
     e.preventDefault()
@@ -95,20 +88,12 @@ export default function EditQuizPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">Details</label>
-            <div className="rounded-lg border border-dark-700 overflow-hidden">
-              <div className="flex items-center gap-2 px-3 py-2 bg-dark-900 border-b border-dark-700">
-                <button type="button" onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bold</button>
-                <button type="button" onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Italic</button>
-                <button type="button" onClick={() => document.execCommand('insertUnorderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bullet</button>
-                <button type="button" onClick={() => document.execCommand('insertOrderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Numbered</button>
-              </div>
-              <div
-                ref={detailsEditorRef}
-                contentEditable
-                className="min-h-[180px] px-4 py-3 bg-dark-900 text-white focus:outline-none"
-                onInput={(e) => setForm({ ...form, details: (e.target as HTMLDivElement).innerHTML })}
-              />
-            </div>
+            <RichTextEditor
+              value={form.details}
+              onChange={(value) => setForm({ ...form, details: value })}
+              placeholder="Detailed instructions, rules, and content..."
+              minHeightClassName="min-h-[220px]"
+            />
             <p className="text-xs text-gray-500 mt-1">Rich text enabled for quiz content/details.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

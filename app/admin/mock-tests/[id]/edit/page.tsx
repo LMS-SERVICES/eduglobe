@@ -1,8 +1,9 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import RichTextEditor from '@/components/RichTextEditor'
 
 type Option = { option: string }
 type Question = { question: string; questionImageUrl: string; marks: number; negativeMarks: number; correctOptionIndex: number; options: Option[] }
@@ -36,7 +37,6 @@ export default function EditMockTestPage() {
   const [error, setError] = useState('')
   const [currentStep, setCurrentStep] = useState(1)
   const [draftLoaded, setDraftLoaded] = useState(false)
-  const instructionsEditorRef = useRef<HTMLDivElement | null>(null)
   const [form, setForm] = useState<FormState>({
     title: '',
     description: '',
@@ -112,13 +112,6 @@ export default function EditMockTestPage() {
     if (bootLoading) return
     localStorage.setItem(draftKey, JSON.stringify({ form, sections, currentStep }))
   }, [form, sections, currentStep, draftKey, bootLoading])
-
-  useEffect(() => {
-    if (!instructionsEditorRef.current) return
-    if (instructionsEditorRef.current.innerHTML !== form.instructions) {
-      instructionsEditorRef.current.innerHTML = form.instructions || ''
-    }
-  }, [form.instructions])
 
   const clearDraft = () => {
     localStorage.removeItem(draftKey)
@@ -201,15 +194,12 @@ export default function EditMockTestPage() {
             <textarea className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded text-white" placeholder="Description" value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} />
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Instructions</label>
-              <div className="rounded-lg border border-dark-700 overflow-hidden">
-                <div className="flex items-center gap-2 px-3 py-2 bg-dark-900 border-b border-dark-700">
-                  <button type="button" onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bold</button>
-                  <button type="button" onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Italic</button>
-                  <button type="button" onClick={() => document.execCommand('insertUnorderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bullet</button>
-                  <button type="button" onClick={() => document.execCommand('insertOrderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Numbered</button>
-                </div>
-                <div ref={instructionsEditorRef} contentEditable className="min-h-[160px] px-4 py-3 bg-dark-900 text-white focus:outline-none" onInput={(e) => setForm({ ...form, instructions: (e.target as HTMLDivElement).innerHTML })} />
-              </div>
+              <RichTextEditor
+                value={form.instructions}
+                onChange={(value) => setForm({ ...form, instructions: value })}
+                placeholder="Write exam instructions, rules, and important notes..."
+                minHeightClassName="min-h-[220px]"
+              />
             </div>
             <div className="grid md:grid-cols-4 gap-3">
               <input className="px-4 py-2 bg-dark-900 border border-dark-700 rounded text-white" type="number" min={1} value={form.durationMinutes} onChange={(e) => setForm({ ...form, durationMinutes: Number(e.target.value || 0) })} placeholder="Duration (min)" />

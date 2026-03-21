@@ -1,9 +1,10 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Trash2, Save, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
+import RichTextEditor from '@/components/RichTextEditor'
 
 interface Category {
   id: string
@@ -102,7 +103,6 @@ export default function CreateCoursePage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [validatingStep, setValidatingStep] = useState(false)
-  const descriptionEditorRef = useRef<HTMLDivElement | null>(null)
 
   const steps = [
     { id: 1, title: 'Basic Info' },
@@ -142,13 +142,6 @@ export default function CreateCoursePage() {
     const payload = { form, sections, currentStep }
     localStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
   }, [form, sections, currentStep])
-
-  useEffect(() => {
-    if (!descriptionEditorRef.current) return
-    if (descriptionEditorRef.current.innerHTML !== form.descriptionFull) {
-      descriptionEditorRef.current.innerHTML = form.descriptionFull || ''
-    }
-  }, [form.descriptionFull])
 
   const addLearningPoint = () => setForm({ ...form, whatYouWillLearn: [...form.whatYouWillLearn, ''] })
   const removeLearningPoint = (i: number) => setForm({ ...form, whatYouWillLearn: form.whatYouWillLearn.filter((_, idx) => idx !== i) })
@@ -410,20 +403,12 @@ export default function CreateCoursePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Full Description *</label>
-              <div className="rounded-lg border border-dark-700 overflow-hidden">
-                <div className="flex items-center gap-2 px-3 py-2 bg-dark-900 border-b border-dark-700">
-                  <button type="button" onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bold</button>
-                  <button type="button" onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Italic</button>
-                  <button type="button" onClick={() => document.execCommand('insertUnorderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bullet</button>
-                  <button type="button" onClick={() => document.execCommand('insertOrderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Numbered</button>
-                </div>
-                <div
-                  ref={descriptionEditorRef}
-                  contentEditable
-                  className="min-h-[180px] px-4 py-3 bg-dark-900 text-white focus:outline-none"
-                  onInput={(e) => setForm({ ...form, descriptionFull: (e.target as HTMLDivElement).innerHTML })}
-                />
-              </div>
+              <RichTextEditor
+                value={form.descriptionFull}
+                onChange={(value) => setForm({ ...form, descriptionFull: value })}
+                placeholder="Write detailed course description..."
+                minHeightClassName="min-h-[220px]"
+              />
               <p className="text-xs text-gray-500 mt-1">Rich text supported. Use the toolbar to format content.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
