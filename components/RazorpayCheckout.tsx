@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 
 interface RazorpayCheckoutProps {
-  entityType: 'course' | 'quiz'
+  entityType: 'course' | 'quiz' | 'mockTest'
   entityId: string
   title: string
   price: number
@@ -38,7 +38,12 @@ export default function RazorpayCheckout({
     if (loading) return
 
     if (!session?.user?.id) {
-      const callback = entityType === 'course' ? `/courses/${entityId}` : `/quizzes/${entityId}`
+      const callback =
+        entityType === 'course'
+          ? `/courses/${entityId}`
+          : entityType === 'quiz'
+          ? `/quizzes/${entityId}`
+          : `/mock-test/${entityId}`
       router.push(`/login?callback=${encodeURIComponent(callback)}`)
       return
     }
@@ -80,6 +85,7 @@ export default function RazorpayCheckout({
 
             if (onSuccess) onSuccess()
             else if (entityType === 'quiz') router.push(`/quizzes/${entityId}/take`)
+            else if (entityType === 'mockTest') router.push(`/mock-test/${entityId}/take`)
             else router.refresh()
           } catch (err: any) {
             alert(err.message || 'Payment verification failed')

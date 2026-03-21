@@ -54,6 +54,15 @@ export async function POST(request: NextRequest) {
           data: { userId: session.user.id, quizId: entityId, paymentId: payment.id },
         })
       }
+    } else if (entityType === 'mockTest') {
+      const existing = await prisma.mockTestEnrollment.findUnique({
+        where: { userId_mockTestId: { userId: session.user.id, mockTestId: entityId } },
+      })
+      if (!existing) {
+        await prisma.mockTestEnrollment.create({
+          data: { userId: session.user.id, mockTestId: entityId },
+        })
+      }
     }
 
     return NextResponse.json({ success: true, message: 'Payment verified and enrollment created' })

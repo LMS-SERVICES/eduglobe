@@ -34,8 +34,13 @@ export function Navbar() {
       .catch(() => {})
   }, [pathname])
 
+  const isExamTakeRoute =
+    !!pathname &&
+    ((pathname.startsWith('/mock-test/') && pathname.endsWith('/take')) ||
+      (pathname.startsWith('/quizzes/') && pathname.endsWith('/take')))
+
   // Don't render the public navbar on admin pages
-  if (pathname?.startsWith('/admin')) return null
+  if (pathname?.startsWith('/admin') || isExamTakeRoute) return null
 
   const handleLogout = async () => {
     await signOut({ redirect: false })

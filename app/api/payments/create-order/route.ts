@@ -44,6 +44,18 @@ export async function POST(request: NextRequest) {
 
       amount = quiz.price
       title = quiz.title
+    } else if (entityType === 'mockTest') {
+      const mockTest = await prisma.mockTest.findUnique({ where: { id: entityId } })
+      if (!mockTest) return NextResponse.json({ error: 'Mock test not found' }, { status: 404 })
+      if (!mockTest.isPublished) return NextResponse.json({ error: 'Mock test is not available' }, { status: 403 })
+
+      const existing = await prisma.mockTestEnrollment.findUnique({
+        where: { userId_mockTestId: { userId: session.user.id, mockTestId: entityId } },
+      })
+      if (existing) return NextResponse.json({ error: 'Already enrolled in this mock test' }, { status: 400 })
+
+      amount = mockTest.price
+      title = mockTest.title
     } else {
       return NextResponse.json({ error: 'Invalid entity type' }, { status: 400 })
     }

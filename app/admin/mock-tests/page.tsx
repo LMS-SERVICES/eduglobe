@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Plus, Trash2 } from 'lucide-react'
+import { Plus, Trash2, Pencil } from 'lucide-react'
 
 interface MockTest {
   id: string
@@ -93,6 +93,9 @@ export default function AdminMockTestsPage() {
                 </td>
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2">
+                    <Link href={`/admin/mock-tests/${test.id}/edit`} className="p-1 text-blue-400 hover:text-blue-300">
+                      <Pencil className="w-4 h-4" />
+                    </Link>
                     <button onClick={() => togglePublish(test)} className="text-xs px-2 py-1 rounded border border-dark-600 text-gray-200 hover:bg-dark-700">
                       {test.isPublished ? 'Unpublish' : 'Publish'}
                     </button>

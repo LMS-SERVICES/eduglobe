@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
+import RazorpayCheckout from '@/components/RazorpayCheckout'
 
 interface MockTest {
   id: string
@@ -30,6 +31,7 @@ export default function MockTestDetailPage() {
   const router = useRouter()
   const [test, setTest] = useState<MockTest | null>(null)
   const [attempts, setAttempts] = useState<Attempt[]>([])
+  const [enrolled, setEnrolled] = useState(false)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
@@ -37,10 +39,12 @@ export default function MockTestDetailPage() {
     Promise.all([
       fetch(`/api/mock-tests/${id}`).then((r) => (r.ok ? r.json() : null)),
       fetch(`/api/mock-tests/${id}/attempts`).then((r) => (r.ok ? r.json() : { attempts: [] })),
+      fetch(`/api/mock-tests/${id}/enrollment`).then((r) => (r.ok ? r.json() : { enrolled: false })),
     ])
-      .then(([testData, attemptsData]) => {
+      .then(([testData, attemptsData, enrollmentData]) => {
         setTest(testData)
         setAttempts(attemptsData?.attempts || [])
+        setEnrolled(!!enrollmentData?.enrolled)
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -82,9 +86,28 @@ export default function MockTestDetailPage() {
               <div dangerouslySetInnerHTML={{ __html: test.instructions }} />
             </div>
           )}
-          <button onClick={start} className="mt-5 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-light">
-            Start Mock Test
-          </button>
+          {enrolled ? (
+            <button onClick={() => router.push(`/mock-test/${id}/take`)} className="mt-5 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-light">
+              Start Mock Test
+            </button>
+          ) : test.isFree || test.price <= 0 ? (
+            <button onClick={start} className="mt-5 px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-light">
+              Start Mock Test
+            </button>
+          ) : (
+            <div className="mt-5 max-w-xs">
+              <RazorpayCheckout
+                entityType="mockTest"
+                entityId={test.id}
+                title={test.title}
+                price={test.price}
+                onSuccess={() => router.push(`/mock-test/${id}/take`)}
+                className="w-full px-6 py-3 bg-accent-orange text-white rounded-lg hover:bg-orange-600 transition-colors font-semibold"
+              >
+                Enroll Now
+              </RazorpayCheckout>
+            </div>
+          )}
         </div>
 
         {attempts.length > 0 && (

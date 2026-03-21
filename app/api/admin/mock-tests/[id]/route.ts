@@ -39,19 +39,73 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     const session = await getServerSession(authOptions)
     if (!isAdmin(session)) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     const body = await request.json()
+    const hasSectionsPayload = Array.isArray(body.sections)
 
-    const updated = await prisma.mockTest.update({
-      where: { id: params.id },
-      data: {
-        title: body.title,
-        description: body.description,
-        instructions: body.instructions,
-        thumbnail: body.thumbnail,
-        durationMinutes: body.durationMinutes,
-        isFree: body.isFree,
-        price: body.price,
-        isPublished: body.isPublished,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      const top = await tx.mockTest.update({
+        where: { id: params.id },
+        data: {
+          title: body.title,
+          description: body.description,
+          instructions: body.instructions,
+          thumbnail: body.thumbnail,
+          durationMinutes: Number(body.durationMinutes || 60),
+          isFree: !!body.isFree,
+          price: Number(body.price || 0),
+          isPublished: !!body.isPublished,
+        },
+      })
+
+      if (hasSectionsPayload) {
+        await tx.mockTestSection.deleteMany({ where: { mockTestId: params.id } })
+
+        for (let si = 0; si < body.sections.length; si++) {
+          const section = body.sections[si]
+          const sectionRow = await tx.mockTestSection.create({
+            data: {
+              mockTestId: params.id,
+              title: section.title,
+              order: si + 1,
+            },
+          })
+
+          for (let qi = 0; qi < (section.questions || []).length; qi++) {
+            const q = section.questions[qi]
+            const questionRow = await tx.mockTestQuestion.create({
+              data: {
+                sectionId: sectionRow.id,
+                question: q.question,
+                questionImageUrl: q.questionImageUrl || null,
+                marks: Number(q.marks || 1),
+                negativeMarks: Number(q.negativeMarks || 0),
+                order: qi + 1,
+              },
+            })
+
+            const optionRows = await Promise.all(
+              (q.options || []).map((opt: any, oi: number) =>
+                tx.mockTestOption.create({
+                  data: {
+                    questionId: questionRow.id,
+                    option: opt.option,
+                    order: oi,
+                  },
+                })
+              )
+            )
+
+            const cIdx = Number(q.correctOptionIndex ?? -1)
+            if (cIdx >= 0 && optionRows[cIdx]) {
+              await tx.mockTestQuestion.update({
+                where: { id: questionRow.id },
+                data: { correctOptionId: optionRows[cIdx].id },
+              })
+            }
+          }
+        }
+      }
+
+      return top
     })
 
     return NextResponse.json(updated)

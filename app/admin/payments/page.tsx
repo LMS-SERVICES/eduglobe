@@ -11,6 +11,8 @@ interface Payment {
   currency: string
   status: string
   entityType: string
+  entityId: string
+  notes?: any
   createdAt: string
   user: { name: string | null; email: string }
   enrollment?: { course: { title: string } }
@@ -80,6 +82,13 @@ export default function AdminPaymentsPage() {
     }
   }
 
+  const resolveItemTitle = (payment: Payment) => {
+    if (payment.entityType === 'course') return payment.enrollment?.course.title
+    if (payment.entityType === 'quiz') return payment.quizEnrollment?.quiz.title
+    const fromNotes = payment.notes && typeof payment.notes === 'object' ? payment.notes.title : null
+    return fromNotes || `Mock Test (${payment.entityId?.slice(0, 8) || 'N/A'})`
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -126,7 +135,7 @@ export default function AdminPaymentsPage() {
                       <div className="text-xs text-gray-400">{payment.user.email}</div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                      {payment.entityType === 'course' ? payment.enrollment?.course.title : payment.quizEnrollment?.quiz.title || 'Unknown Item'}
+                      {resolveItemTitle(payment) || 'Unknown Item'}
                       <span className="ml-2 text-xs px-2 py-0.5 rounded-full bg-dark-700 text-gray-400 capitalize">{payment.entityType}</span>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm text-white font-medium">
