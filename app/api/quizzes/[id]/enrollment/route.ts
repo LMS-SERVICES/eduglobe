@@ -13,10 +13,46 @@ export async function GET(
 
     const enrollment = await prisma.quizEnrollment.findUnique({
       where: { userId_quizId: { userId: session.user.id, quizId: params.id } },
-      include: { quiz: { select: { id: true, title: true, isPublished: true } } },
+      include: {
+        quiz: { select: { id: true, title: true, isPublished: true } },
+        answers: {
+          include: {
+            question: { include: { options: true, section: { select: { id: true, title: true } } } },
+          },
+        },
+      },
     })
 
     if (!enrollment) return NextResponse.json({ enrolled: false })
+
+    const latestAttempt = await prisma.quizAttempt.findFirst({
+      where: { enrollmentId: enrollment.id },
+      orderBy: { attemptNumber: 'desc' },
+      select: { attemptNumber: true },
+    })
+
+    const review = (enrollment.answers || []).map((a: any) => {
+      const correctOption = a.question.options.find((opt: any) => opt.id === a.question.correctOptionId)
+      const selectedOption = a.question.options.find((opt: any) => opt.option === a.answer)
+      return {
+        sectionId: a.question.section.id,
+        sectionTitle: a.question.section.title,
+        questionId: a.question.id,
+        question: a.question.question,
+        questionImageUrl: a.question.questionImageUrl || null,
+        marks: a.question.marks,
+        selectedOptionId: selectedOption?.id || null,
+        correctOptionId: a.question.correctOptionId || null,
+        options: a.question.options.map((opt: any) => ({
+          id: opt.id,
+          option: opt.option,
+        })),
+        selectedAnswer: a.answer || null,
+        correctAnswer: correctOption?.option || null,
+        isCorrect: a.isCorrect,
+        marksObtained: a.marksObtained,
+      }
+    })
 
     return NextResponse.json({
       enrolled: true,
@@ -27,7 +63,10 @@ export async function GET(
         totalMarks: enrollment.totalMarks,
         percentage: enrollment.percentage,
         certificate: enrollment.certificate,
+        attemptNumber: latestAttempt?.attemptNumber || 0,
       },
+      passed: (enrollment.percentage || 0) >= 50,
+      review,
     })
   } catch (error) {
     console.error('Error checking enrollment:', error)

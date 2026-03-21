@@ -67,12 +67,15 @@ export async function POST(request: NextRequest) {
               data: { quizId: newQuiz.id, title: section.title, order: section.order },
             })
 
+            const requireCorrectAnswer = body.isPublished === true
+
             const createdQuestions = await Promise.all(
               section.questions.map(async (q: any) => {
                 const correctOptionIndex = q.options.findIndex(
                   (opt: any) => opt.id === q.correctOptionId || opt.order.toString() === q.correctOptionId
                 )
-                if (correctOptionIndex === -1) {
+
+                if (requireCorrectAnswer && correctOptionIndex === -1) {
                   throw new Error(`Correct option not found for question: ${q.question}`)
                 }
 
@@ -90,7 +93,18 @@ export async function POST(request: NextRequest) {
                   include: { options: true },
                 })
 
+                if (correctOptionIndex === -1) {
+                  return question
+                }
+
                 const correctOption = question.options[correctOptionIndex]
+                if (!correctOption) {
+                  if (requireCorrectAnswer) {
+                    throw new Error(`Correct option not found for question: ${q.question}`)
+                  }
+                  return question
+                }
+
                 return tx.quizQuestion.update({
                   where: { id: question.id },
                   data: { correctOptionId: correctOption.id },

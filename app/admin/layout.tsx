@@ -19,6 +19,8 @@ import {
   GraduationCap,
   FileText,
   Archive,
+  CreditCard,
+  Timer,
 } from 'lucide-react'
 
 export default function AdminLayout({
@@ -60,6 +62,8 @@ export default function AdminLayout({
     { href: '/admin/previous-papers', label: 'Previous Papers', icon: Archive },
     { href: '/admin/quizzes', label: 'Quizzes', icon: ClipboardList },
     { href: '/admin/news-updates', label: 'News Updates', icon: Newspaper },
+    { href: '/admin/mock-tests', label: 'Mock Tests', icon: Timer },
+    { href: '/admin/payments', label: 'Payments', icon: CreditCard },
     { href: '/admin/users', label: 'Users', icon: Users },
   ]
 

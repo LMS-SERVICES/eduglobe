@@ -1,76 +1,66 @@
-import { LMS_PORTAL_URL } from "@/lib/constants";
+'use client'
 
-export const metadata = {
-  title: "Mock Test – EduGlobe Academy",
-  description: "Practice with mock tests for TET, DSC, and competitive exams.",
-};
+import { useEffect, useState } from 'react'
+import Link from 'next/link'
 
-const DUMMY_MOCK_TESTS = [
-  {
-    name: "TET Paper I – Full Length Mock",
-    duration: "150 minutes",
-    questions: 150,
-    level: "Beginner",
-  },
-  {
-    name: "TET Paper II – Mathematics & Science Mock",
-    duration: "150 minutes",
-    questions: 150,
-    level: "Intermediate",
-  },
-  {
-    name: "DSC General Studies Mock Test",
-    duration: "120 minutes",
-    questions: 120,
-    level: "Advanced",
-  },
-];
+interface MockTest {
+  id: string
+  title: string
+  description?: string
+  durationMinutes: number
+  isFree: boolean
+  price: number
+  sections: { questions: any[] }[]
+  _count?: { enrollments: number; attempts: number }
+}
 
 export default function MockTestPage() {
+  const [tests, setTests] = useState<MockTest[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch('/api/mock-tests')
+      .then((r) => (r.ok ? r.json() : []))
+      .then((data) => setTests(Array.isArray(data) ? data : []))
+      .catch(console.error)
+      .finally(() => setLoading(false))
+  }, [])
+
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-      <h1 className="text-3xl font-bold text-primary-dark mb-2">Mock Test</h1>
+      <h1 className="text-3xl font-bold text-primary-dark mb-2">Mock Tests</h1>
       <p className="text-slate-600 mb-8 max-w-2xl">
-        Take full-length mock tests aligned with exam pattern. Below are sample
-        mock tests to illustrate how the portal will list available exams.
+        Real exam-like interface with timer, section navigation, and attempt history.
       </p>
 
-      <div className="grid md:grid-cols-3 gap-6 mb-10">
-        {DUMMY_MOCK_TESTS.map((test) => (
-          <div
-            key={test.name}
-            className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm"
-          >
-            <h2 className="text-lg font-semibold text-primary-dark">
-              {test.name}
-            </h2>
-            <p className="mt-2 text-sm text-slate-600">
-              Duration: {test.duration}
-            </p>
-            <p className="text-sm text-slate-600">
-              Number of Questions: {test.questions}
-            </p>
-            <span className="mt-3 inline-flex px-2.5 py-1 rounded-full bg-slate-100 text-xs font-medium text-slate-700">
-              Level: {test.level}
-            </span>
-            <button
-              type="button"
-              className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-primary text-white text-sm font-medium px-4 py-2 hover:bg-primary/90"
-            >
-              Start Demo Mock
-            </button>
-          </div>
-        ))}
+      <div className="grid md:grid-cols-3 gap-6">
+        {loading ? (
+          <p className="text-slate-500">Loading mock tests...</p>
+        ) : tests.length === 0 ? (
+          <p className="text-slate-500">No mock tests available right now.</p>
+        ) : (
+          tests.map((test) => (
+            <div key={test.id} className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h2 className="text-lg font-semibold text-primary-dark">{test.title}</h2>
+              <p className="mt-2 text-sm text-slate-600 line-clamp-2">{test.description || 'No description added.'}</p>
+              <p className="mt-2 text-sm text-slate-600">Duration: {test.durationMinutes} minutes</p>
+              <p className="text-sm text-slate-600">
+                Questions: {test.sections.reduce((sum, s) => sum + (s.questions?.length || 0), 0)}
+              </p>
+              <p className="text-sm text-slate-600">Attempts: {test._count?.attempts || 0}</p>
+              <span className={`mt-3 inline-flex px-2.5 py-1 rounded-full text-xs font-medium ${test.isFree ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}`}>
+                {test.isFree ? 'Free Mock' : `Paid (INR ${test.price})`}
+              </span>
+              <Link
+                href={`/mock-test/${test.id}`}
+                className="mt-4 inline-flex w-full items-center justify-center rounded-lg bg-primary text-white text-sm font-medium px-4 py-2 hover:bg-primary/90"
+              >
+                Start Mock Test
+              </Link>
+            </div>
+          ))
+        )}
       </div>
-
-      <a
-        href={LMS_PORTAL_URL}
-        target="_blank"
-        rel="noopener noreferrer"
-        className="inline-flex px-5 py-2.5 rounded-lg bg-accent-orange text-white font-medium hover:bg-orange-600"
-      >
-        View All Mock Tests in LMS
-      </a>
     </div>
-  );
+  )
 }

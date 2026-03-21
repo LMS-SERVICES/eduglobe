@@ -6,6 +6,7 @@ import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft, Users, CheckCircle, Clock } from 'lucide-react'
+import RazorpayCheckout from '@/components/RazorpayCheckout'
 
 interface Quiz {
   id: string
@@ -18,6 +19,15 @@ interface Quiz {
   sections: { id: string; title: string; questions: any[] }[]
   _count: { enrollments: number }
 }
+interface Attempt {
+  id: string
+  attemptNumber: number
+  score: number
+  totalMarks: number
+  percentage: number
+  passed: boolean
+  submittedAt: string
+}
 
 export default function QuizDetailPage() {
   const { id } = useParams()
@@ -25,6 +35,7 @@ export default function QuizDetailPage() {
   const { data: session } = useSession()
   const [quiz, setQuiz] = useState<Quiz | null>(null)
   const [enrollment, setEnrollment] = useState<any>(null)
+  const [attempts, setAttempts] = useState<Attempt[]>([])
   const [loading, setLoading] = useState(true)
   const [enrolling, setEnrolling] = useState(false)
 
@@ -33,9 +44,11 @@ export default function QuizDetailPage() {
     Promise.all([
       fetch(`/api/quizzes/${id}`).then((r) => r.ok ? r.json() : null),
       session ? fetch(`/api/quizzes/${id}/enrollment`).then((r) => r.ok ? r.json() : null) : null,
-    ]).then(([quizData, enrollData]) => {
+      session ? fetch(`/api/quizzes/${id}/attempts`).then((r) => r.ok ? r.json() : { attempts: [] }) : { attempts: [] },
+    ]).then(([quizData, enrollData, attemptsData]) => {
       setQuiz(quizData)
       setEnrollment(enrollData)
+      setAttempts(attemptsData?.attempts || [])
     }).catch(console.error).finally(() => setLoading(false))
   }, [id, session])
 
@@ -90,11 +103,28 @@ export default function QuizDetailPage() {
                       <p className="font-semibold text-green-700">Completed!</p>
                       <p className="text-sm text-green-600">Score: {enrollment.enrollment.score}/{enrollment.enrollment.totalMarks} ({enrollment.enrollment.percentage?.toFixed(1)}%)</p>
                     </div>
+                    <Link href={`/quizzes/${id}/take`} className="block w-full py-2.5 border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors text-center font-medium">
+                      View Answers
+                    </Link>
+                    <Link href={`/quizzes/${id}/take?reattempt=1`} className="block w-full py-2.5 bg-accent-orange text-white rounded-lg hover:bg-orange-600 transition-colors text-center font-medium">
+                      Re-attempt Quiz
+                    </Link>
                   </div>
                 ) : enrollment?.enrolled ? (
                   <Link href={`/quizzes/${id}/take`} className="block w-full py-3 bg-accent-orange text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors text-center">
                     Continue Quiz
                   </Link>
+                ) : quiz.price > 0 ? (
+                  <RazorpayCheckout
+                    entityType="quiz"
+                    entityId={quiz.id}
+                    title={quiz.title}
+                    price={quiz.price}
+                    onSuccess={() => router.push(`/quizzes/${id}/take`)}
+                    className="w-full py-3 bg-accent-orange text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors"
+                  >
+                    Enroll Now
+                  </RazorpayCheckout>
                 ) : (
                   <button onClick={handleEnroll} disabled={enrolling} className="w-full py-3 bg-accent-orange text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors disabled:opacity-50">
                     {enrolling ? 'Enrolling...' : quiz.price > 0 ? 'Enroll Now' : 'Start Quiz'}
@@ -125,6 +155,27 @@ export default function QuizDetailPage() {
             ))}
           </div>
         </div>
+
+        {attempts.length > 0 && (
+          <div>
+            <h2 className="text-xl font-bold text-slate-800 mb-4">Attempt History</h2>
+            <div className="space-y-3">
+              {attempts.map((attempt) => (
+                <div key={attempt.id} className="bg-white border border-slate-200 rounded-lg p-4 flex items-center justify-between">
+                  <div>
+                    <p className="font-medium text-slate-800">Attempt #{attempt.attemptNumber}</p>
+                    <p className="text-sm text-slate-500">
+                      Score: {attempt.score}/{attempt.totalMarks} ({attempt.percentage.toFixed(1)}%) · {new Date(attempt.submittedAt).toLocaleString()}
+                    </p>
+                  </div>
+                  <span className={`text-sm font-semibold ${attempt.passed ? 'text-green-600' : 'text-red-600'}`}>
+                    {attempt.passed ? 'Pass' : 'Fail'}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

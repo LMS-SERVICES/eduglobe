@@ -22,6 +22,10 @@ model User {
   progress         LessonProgress[]
   reviews          Review[]
   quizEnrollments  QuizEnrollment[]
+  quizAttempts     QuizAttempt[]
+  mockTestEnrollments MockTestEnrollment[]
+  mockTestAttempts MockTestAttempt[]
+  payments         Payment[]
 
   @@map("users")
 }
@@ -194,6 +198,8 @@ model Enrollment {
   courseId    String
   course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
   enrolledAt DateTime @default(now())
+  paymentId  String?  @unique
+  payment    Payment? @relation(fields: [paymentId], references: [id])
 
   progress LessonProgress[]
 
@@ -273,9 +279,136 @@ model Quiz {
 
   sections    QuizSection[]
   enrollments QuizEnrollment[]
+  attempts    QuizAttempt[]
 
   @@index([isPublished])
   @@map("quizzes")
+}
+
+model MockTest {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String?  @db.Text
+  instructions String? @db.Text
+  thumbnail   String?
+  durationMinutes Int  @default(60)
+  isFree      Boolean  @default(true)
+  price       Float    @default(0)
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  sections    MockTestSection[]
+  enrollments MockTestEnrollment[]
+  attempts    MockTestAttempt[]
+
+  @@index([isPublished])
+  @@map("mock_tests")
+}
+
+model MockTestSection {
+  id         String   @id @default(cuid())
+  mockTestId String
+  mockTest   MockTest @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+  title      String
+  order      Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  questions  MockTestQuestion[]
+
+  @@index([mockTestId])
+  @@map("mock_test_sections")
+}
+
+model MockTestQuestion {
+  id              String          @id @default(cuid())
+  sectionId       String
+  section         MockTestSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  question        String          @db.Text
+  questionImageUrl String?
+  correctOptionId String?
+  marks           Float           @default(1)
+  negativeMarks   Float           @default(0)
+  order           Int             @default(0)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  options MockTestOption[]
+  answers MockTestAnswer[]
+
+  @@index([sectionId])
+  @@map("mock_test_questions")
+}
+
+model MockTestOption {
+  id         String           @id @default(cuid())
+  questionId String
+  question   MockTestQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  option     String           @db.Text
+  order      Int              @default(0)
+  createdAt  DateTime         @default(now())
+
+  @@index([questionId])
+  @@map("mock_test_options")
+}
+
+model MockTestEnrollment {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mockTestId  String
+  mockTest    MockTest @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+  enrolledAt  DateTime @default(now())
+
+  answers  MockTestAnswer[]
+  attempts MockTestAttempt[]
+
+  @@unique([userId, mockTestId])
+  @@index([userId])
+  @@index([mockTestId])
+  @@map("mock_test_enrollments")
+}
+
+model MockTestAttempt {
+  id            String             @id @default(cuid())
+  enrollmentId  String
+  enrollment    MockTestEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mockTestId    String
+  mockTest      MockTest           @relation(fields: [mockTestId], references: [id], onDelete: Cascade)
+  attemptNumber Int
+  score         Float
+  totalMarks    Float
+  percentage    Float
+  passed        Boolean
+  submittedAt   DateTime           @default(now())
+  review        Json?
+
+  @@unique([enrollmentId, attemptNumber])
+  @@index([enrollmentId])
+  @@index([userId])
+  @@index([mockTestId])
+  @@map("mock_test_attempts")
+}
+
+model MockTestAnswer {
+  id            String             @id @default(cuid())
+  enrollmentId  String
+  enrollment    MockTestEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      MockTestQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answer        String             @db.Text
+  isCorrect     Boolean            @default(false)
+  marksObtained Float              @default(0)
+  answeredAt    DateTime           @default(now())
+
+  @@unique([enrollmentId, questionId])
+  @@index([enrollmentId])
+  @@index([questionId])
+  @@map("mock_test_answers")
 }
 
 model QuizSection {
@@ -336,13 +469,71 @@ model QuizEnrollment {
   totalMarks  Float?
   percentage  Float?
   certificate String?
+  paymentId   String?  @unique
+  payment     Payment? @relation(fields: [paymentId], references: [id])
 
   answers QuizAnswer[]
+  attempts QuizAttempt[]
 
   @@unique([userId, quizId])
   @@index([userId])
   @@index([quizId])
   @@map("quiz_enrollments")
+}
+
+model QuizAttempt {
+  id            String         @id @default(cuid())
+  enrollmentId  String
+  enrollment    QuizEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  userId        String
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quizId        String
+  quiz          Quiz           @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  attemptNumber Int
+  score         Float
+  totalMarks    Float
+  percentage    Float
+  passed        Boolean
+  review        Json?
+  submittedAt   DateTime       @default(now())
+
+  @@index([enrollmentId])
+  @@index([userId])
+  @@index([quizId])
+  @@unique([enrollmentId, attemptNumber])
+  @@map("quiz_attempts")
+}
+
+model Payment {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  razorpayOrderId   String  @unique
+  razorpayPaymentId String? @unique
+  razorpaySignature String?
+
+  amount   Float
+  currency String @default("INR")
+  status   String // created, authorized, captured, failed, refunded
+
+  entityType String // course, quiz
+  entityId   String
+
+  receipt String?
+  notes   Json?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  enrollment     Enrollment?
+  quizEnrollment QuizEnrollment?
+
+  @@index([userId])
+  @@index([razorpayOrderId])
+  @@index([razorpayPaymentId])
+  @@index([entityType, entityId])
+  @@map("payments")
 }
 
 model QuizAnswer {

@@ -5,6 +5,8 @@ import { useParams } from 'next/navigation'
 import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft, BookOpen, Clock, Users, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
+import { useSession } from 'next-auth/react'
+import RazorpayCheckout from '@/components/RazorpayCheckout'
 
 interface Course {
   id: string
@@ -40,23 +42,45 @@ interface Course {
 
 export default function CourseDetailPage() {
   const { id } = useParams()
+  const { data: session } = useSession()
   const [course, setCourse] = useState<Course | null>(null)
   const [loading, setLoading] = useState(true)
+  const [enrolling, setEnrolling] = useState(false)
+  const [enrolled, setEnrolled] = useState(false)
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!id) return
-    fetch(`/api/courses/${id}`)
-      .then((r) => r.ok ? r.json() : null)
-      .then((data) => {
+    Promise.all([
+      fetch(`/api/courses/${id}`).then((r) => (r.ok ? r.json() : null)),
+      session ? fetch(`/api/courses/${id}/enrollment`).then((r) => (r.ok ? r.json() : { enrolled: false })) : Promise.resolve({ enrolled: false }),
+    ])
+      .then(([data, enrollmentData]) => {
         setCourse(data)
+        setEnrolled(!!enrollmentData?.enrolled)
         if (data?.sections?.[0]) {
           setExpandedSections(new Set([data.sections[0].id]))
         }
       })
       .catch(console.error)
       .finally(() => setLoading(false))
-  }, [id])
+  }, [id, session])
+
+  const handleFreeEnroll = async () => {
+    if (!id) return
+    setEnrolling(true)
+    try {
+      const res = await fetch(`/api/courses/${id}/enroll`, { method: 'POST' })
+      const data = await res.json().catch(() => ({}))
+      if (!res.ok) {
+        alert(data?.error || 'Failed to enroll')
+        return
+      }
+      setEnrolled(true)
+    } finally {
+      setEnrolling(false)
+    }
+  }
 
   const toggleSection = (sectionId: string) => {
     setExpandedSections((prev) => {
@@ -126,9 +150,30 @@ export default function CourseDetailPage() {
                 {course.timeline && (
                   <p className="text-sm text-slate-500 mb-4">Duration: {course.timeline}</p>
                 )}
-                <button className="w-full py-3 bg-accent-orange text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors">
-                  Enroll Now
-                </button>
+                {enrolled ? (
+                  <Link href="/profile" className="block w-full py-3 bg-green-600 text-white rounded-lg font-semibold text-center">
+                    Enrolled - View in Profile
+                  </Link>
+                ) : course.price > 0 ? (
+                  <RazorpayCheckout
+                    entityType="course"
+                    entityId={course.id}
+                    title={course.title}
+                    price={course.price}
+                    onSuccess={() => setEnrolled(true)}
+                    className="w-full py-3 bg-accent-orange text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors"
+                  >
+                    Enroll Now
+                  </RazorpayCheckout>
+                ) : (
+                  <button
+                    onClick={handleFreeEnroll}
+                    disabled={enrolling}
+                    className="w-full py-3 bg-accent-orange text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors disabled:opacity-50"
+                  >
+                    {enrolling ? 'Enrolling...' : 'Enroll Now'}
+                  </button>
+                )}
               </div>
             </div>
           </div>

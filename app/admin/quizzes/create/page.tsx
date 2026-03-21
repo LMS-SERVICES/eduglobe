@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Trash2, Save } from 'lucide-react'
 import Link from 'next/link'
@@ -22,6 +22,7 @@ export default function CreateQuizPage() {
   const [sections, setSections] = useState<SectionInput[]>([{ title: 'Section 1', order: 1, questions: [newQuestion()] }])
   const [currentStep, setCurrentStep] = useState(1)
   const [draftLoaded, setDraftLoaded] = useState(false)
+  const detailsEditorRef = useRef<HTMLDivElement | null>(null)
 
   const steps = [
     { id: 1, title: 'Basic Info' },
@@ -46,6 +47,13 @@ export default function CreateQuizPage() {
   useEffect(() => {
     localStorage.setItem(QUIZ_DRAFT_KEY, JSON.stringify({ form, sections, currentStep }))
   }, [form, sections, currentStep])
+
+  useEffect(() => {
+    if (!detailsEditorRef.current) return
+    if (detailsEditorRef.current.innerHTML !== form.details) {
+      detailsEditorRef.current.innerHTML = form.details || ''
+    }
+  }, [form.details])
 
   const addSection = () => setSections([...sections, { title: `Section ${sections.length + 1}`, order: sections.length + 1, questions: [newQuestion()] }])
   const removeSection = (i: number) => setSections(sections.filter((_, idx) => idx !== i))
@@ -160,7 +168,21 @@ export default function CreateQuizPage() {
           </div>
           <div>
             <label className="block text-sm font-medium text-gray-300 mb-1">Details (shown on quiz page)</label>
-            <textarea value={form.details} onChange={(e) => setForm({ ...form, details: e.target.value })} className={ic} style={{ backgroundColor: '#0b1220' }} rows={5} placeholder="Detailed instructions, rules, etc." />
+            <div className="rounded-lg border border-dark-700 overflow-hidden">
+              <div className="flex items-center gap-2 px-3 py-2 bg-dark-900 border-b border-dark-700">
+                <button type="button" onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bold</button>
+                <button type="button" onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Italic</button>
+                <button type="button" onClick={() => document.execCommand('insertUnorderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bullet</button>
+                <button type="button" onClick={() => document.execCommand('insertOrderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Numbered</button>
+              </div>
+              <div
+                ref={detailsEditorRef}
+                contentEditable
+                className="min-h-[180px] px-4 py-3 bg-dark-900 text-white focus:outline-none"
+                onInput={(e) => setForm({ ...form, details: (e.target as HTMLDivElement).innerHTML })}
+              />
+            </div>
+            <p className="text-xs text-gray-500 mt-1">Rich text enabled for quiz content/details.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>

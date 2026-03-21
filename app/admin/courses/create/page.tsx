@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Trash2, Save, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
@@ -101,6 +101,8 @@ export default function CreateCoursePage() {
   const [error, setError] = useState('')
   const [currentStep, setCurrentStep] = useState(1)
   const [draftLoaded, setDraftLoaded] = useState(false)
+  const [validatingStep, setValidatingStep] = useState(false)
+  const descriptionEditorRef = useRef<HTMLDivElement | null>(null)
 
   const steps = [
     { id: 1, title: 'Basic Info' },
@@ -140,6 +142,13 @@ export default function CreateCoursePage() {
     const payload = { form, sections, currentStep }
     localStorage.setItem(DRAFT_KEY, JSON.stringify(payload))
   }, [form, sections, currentStep])
+
+  useEffect(() => {
+    if (!descriptionEditorRef.current) return
+    if (descriptionEditorRef.current.innerHTML !== form.descriptionFull) {
+      descriptionEditorRef.current.innerHTML = form.descriptionFull || ''
+    }
+  }, [form.descriptionFull])
 
   const addLearningPoint = () => setForm({ ...form, whatYouWillLearn: [...form.whatYouWillLearn, ''] })
   const removeLearningPoint = (i: number) => setForm({ ...form, whatYouWillLearn: form.whatYouWillLearn.filter((_, idx) => idx !== i) })
@@ -214,13 +223,57 @@ export default function CreateCoursePage() {
     return true
   }
 
-  const nextStep = () => {
+  const validateCurrentStepServer = async (step: number) => {
+    const payload: any = {}
+    if (step === 1) {
+      payload.title = form.title
+      payload.description = form.description
+      payload.descriptionFull = form.descriptionFull.replace(/<[^>]*>/g, '').trim()
+      payload.thumbnail = form.thumbnail
+      payload.categoryId = form.categoryId
+    } else if (step === 2) {
+      payload.whatYouWillLearn = form.whatYouWillLearn.filter((p) => p.trim())
+    } else if (step === 3) {
+      payload.requirements = form.requirements.filter((r) => r.trim())
+    } else if (step === 4) {
+      payload.sections = sections.map((s) => ({
+        title: s.title,
+        lessons: s.lessons.map((l) => ({
+          title: l.title,
+          type: l.type,
+          videoUrl: l.videoUrl || null,
+          documentUrl: l.documentUrl || null,
+          quizId: l.quizId || null,
+        })),
+      }))
+    }
+
+    const res = await fetch('/api/courses/create/step-validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ step, payload }),
+    })
+    const data = await res.json().catch(() => ({}))
+    if (!res.ok) {
+      throw new Error(data?.error || 'Step validation failed')
+    }
+  }
+
+  const nextStep = async () => {
     setError('')
     if (!validateStep(currentStep)) {
       setError('Please complete required fields in this step before continuing.')
       return
     }
-    setCurrentStep((s) => Math.min(s + 1, steps.length))
+    setValidatingStep(true)
+    try {
+      await validateCurrentStepServer(currentStep)
+      setCurrentStep((s) => Math.min(s + 1, steps.length))
+    } catch (err: any) {
+      setError(err?.message || 'Unable to validate this step')
+    } finally {
+      setValidatingStep(false)
+    }
   }
 
   const prevStep = () => {
@@ -357,7 +410,21 @@ export default function CreateCoursePage() {
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Full Description *</label>
-              <textarea required value={form.descriptionFull} onChange={(e) => setForm({ ...form, descriptionFull: e.target.value })} className={inputClass} rows={5} />
+              <div className="rounded-lg border border-dark-700 overflow-hidden">
+                <div className="flex items-center gap-2 px-3 py-2 bg-dark-900 border-b border-dark-700">
+                  <button type="button" onClick={() => document.execCommand('bold')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bold</button>
+                  <button type="button" onClick={() => document.execCommand('italic')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Italic</button>
+                  <button type="button" onClick={() => document.execCommand('insertUnorderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Bullet</button>
+                  <button type="button" onClick={() => document.execCommand('insertOrderedList')} className="text-xs px-2 py-1 rounded bg-dark-700 text-gray-200 hover:bg-dark-600">Numbered</button>
+                </div>
+                <div
+                  ref={descriptionEditorRef}
+                  contentEditable
+                  className="min-h-[180px] px-4 py-3 bg-dark-900 text-white focus:outline-none"
+                  onInput={(e) => setForm({ ...form, descriptionFull: (e.target as HTMLDivElement).innerHTML })}
+                />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Rich text supported. Use the toolbar to format content.</p>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
@@ -627,8 +694,8 @@ export default function CreateCoursePage() {
 
           <div className="flex gap-3">
             {currentStep < steps.length ? (
-              <button type="button" onClick={nextStep} className="px-5 py-3 bg-primary text-white rounded-lg hover:bg-primary-light transition-colors flex items-center gap-1">
-                Next <ChevronRight className="w-4 h-4" />
+              <button type="button" disabled={validatingStep} onClick={nextStep} className="px-5 py-3 bg-primary text-white rounded-lg hover:bg-primary-light transition-colors flex items-center gap-1 disabled:opacity-60">
+                {validatingStep ? 'Validating...' : 'Next'} <ChevronRight className="w-4 h-4" />
               </button>
             ) : (
               <button type="submit" disabled={loading} className="px-6 py-3 bg-primary text-white rounded-lg hover:bg-primary-light transition-colors disabled:opacity-50 flex items-center gap-2">
