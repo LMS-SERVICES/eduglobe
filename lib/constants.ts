@@ -31,6 +31,7 @@ export const LMS_PORTAL_URL =
   process.env.NEXT_PUBLIC_LMS_PORTAL_URL || "/lms";
 
 export const NAV = [
+  { label: "Courses", href: "/courses" },
   { label: "Popular Courses", href: "/popular-courses" },
   { label: "Academic Course", href: "/academic-course" },
   { label: "Mock Test", href: "/mock-test" },

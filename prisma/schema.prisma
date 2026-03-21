@@ -1,0 +1,430 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  password     String
+  image        String?
+  mobileNumber String?
+  role         String   @default("USER")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  enrollments      Enrollment[]
+  progress         LessonProgress[]
+  reviews          Review[]
+  quizEnrollments  QuizEnrollment[]
+
+  @@map("users")
+}
+
+model Instructor {
+  id            String   @id @default(cuid())
+  name          String
+  bio           String?
+  image         String?
+  rating        Float    @default(0)
+  totalStudents Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  courses Course[]
+
+  @@map("instructors")
+}
+
+model Category {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  icon        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  courses Course[]
+  syllabi Syllabus[]
+  previousPapers PreviousPaper[]
+
+  @@map("categories")
+}
+
+model AcademicCategory {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  courses AcademicCourse[]
+
+  @@map("academic_categories")
+}
+
+model AcademicCourse {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  description String   @db.Text
+  thumbnail   String?
+  price       Float    @default(0)
+  duration    String?
+  level       String?
+  isPublished Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  categoryId String
+  category   AcademicCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@index([isPublished])
+  @@map("academic_courses")
+}
+
+model Course {
+  id              String  @id @default(cuid())
+  title           String
+  slug            String  @unique
+  description     String  @db.Text
+  descriptionFull String  @db.Text
+  thumbnail       String
+  price           Float
+  originalPrice   Float?
+
+  language      String  @default("English")
+  duration      String
+  timeline      String?
+  lecturesCount Int     @default(0)
+  isPublished   Boolean @default(false)
+  isBestSeller  Boolean @default(false)
+
+  metaTitle       String?
+  metaDescription String? @db.Text
+  keywords        String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  instructorId String
+  instructor   Instructor @relation(fields: [instructorId], references: [id], onDelete: Cascade)
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id])
+
+  sections         Section[]
+  enrollments      Enrollment[]
+  reviews          Review[]
+  whatYouWillLearn CourseLearningPoint[]
+  requirements     CourseRequirement[]
+  rating           CourseRating?
+
+  @@index([categoryId])
+  @@index([instructorId])
+  @@index([slug])
+  @@map("courses")
+}
+
+model CourseLearningPoint {
+  id       String @id @default(cuid())
+  content  String
+  courseId  String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("course_learning_points")
+}
+
+model CourseRequirement {
+  id       String @id @default(cuid())
+  content  String
+  courseId  String
+  course   Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+
+  @@map("course_requirements")
+}
+
+model Section {
+  id        String   @id @default(cuid())
+  title     String
+  order     Int
+  courseId  String
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessons Lesson[]
+
+  @@index([courseId])
+  @@map("sections")
+}
+
+model Lesson {
+  id          String   @id @default(cuid())
+  title       String
+  description String?  @db.Text
+  content     String?  @db.Text
+  duration    String
+  type        String
+  order       Int
+  isPreview   Boolean  @default(false)
+  sectionId   String
+  section     Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  progress LessonProgress[]
+
+  @@index([sectionId])
+  @@map("lessons")
+}
+
+model Enrollment {
+  id         String   @id @default(cuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  courseId    String
+  course     Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  enrolledAt DateTime @default(now())
+
+  progress LessonProgress[]
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@map("enrollments")
+}
+
+model LessonProgress {
+  id           String     @id @default(cuid())
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  lessonId     String
+  lesson       Lesson     @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  completed    Boolean    @default(false)
+  completedAt  DateTime?
+  progress     Int        @default(0)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  @@unique([userId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
+  @@index([enrollmentId])
+  @@map("lesson_progress")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  courseId   String
+  rating    Int
+  comment   String?  @db.Text
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course    Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, courseId])
+  @@index([userId])
+  @@index([courseId])
+  @@map("reviews")
+}
+
+model CourseRating {
+  id            String   @id @default(cuid())
+  courseId       String   @unique
+  course        Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  averageRating Float    @default(0)
+  totalReviews  Int      @default(0)
+  rating1       Int      @default(0)
+  rating2       Int      @default(0)
+  rating3       Int      @default(0)
+  rating4       Int      @default(0)
+  rating5       Int      @default(0)
+  updatedAt     DateTime @default(now()) @updatedAt
+
+  @@index([courseId])
+  @@map("course_ratings")
+}
+
+model Quiz {
+  id                  String    @id @default(cuid())
+  title               String
+  description         String?   @db.Text
+  details             String?   @db.Text
+  thumbnail           String?
+  expiryDate          DateTime?
+  price               Float     @default(0)
+  generateCertificate Boolean   @default(false)
+  isPublished         Boolean   @default(false)
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  sections    QuizSection[]
+  enrollments QuizEnrollment[]
+
+  @@index([isPublished])
+  @@map("quizzes")
+}
+
+model QuizSection {
+  id        String   @id @default(cuid())
+  title     String
+  order     Int
+  quizId    String
+  quiz      Quiz     @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions QuizQuestion[]
+
+  @@index([quizId])
+  @@map("quiz_sections")
+}
+
+model QuizQuestion {
+  id              String      @id @default(cuid())
+  sectionId       String
+  section         QuizSection @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  question        String      @db.Text
+  questionImageUrl String?
+  correctOptionId String?
+  marks           Int         @default(1)
+  order           Int         @default(0)
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  options QuizOption[]
+  answers QuizAnswer[]
+
+  @@index([sectionId])
+  @@map("quiz_questions")
+}
+
+model QuizOption {
+  id         String       @id @default(cuid())
+  questionId String
+  question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  option     String       @db.Text
+  order      Int          @default(0)
+  createdAt  DateTime     @default(now())
+
+  @@index([questionId])
+  @@map("quiz_options")
+}
+
+model QuizEnrollment {
+  id          String    @id @default(cuid())
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  quizId      String
+  quiz        Quiz      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  enrolledAt  DateTime  @default(now())
+  completedAt DateTime?
+  score       Float?
+  totalMarks  Float?
+  percentage  Float?
+  certificate String?
+
+  answers QuizAnswer[]
+
+  @@unique([userId, quizId])
+  @@index([userId])
+  @@index([quizId])
+  @@map("quiz_enrollments")
+}
+
+model QuizAnswer {
+  id            String         @id @default(cuid())
+  enrollmentId  String
+  enrollment    QuizEnrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  questionId    String
+  question      QuizQuestion   @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  answer        String         @db.Text
+  isCorrect     Boolean        @default(false)
+  marksObtained Float          @default(0)
+  answeredAt    DateTime       @default(now())
+
+  @@unique([enrollmentId, questionId])
+  @@index([enrollmentId])
+  @@index([questionId])
+  @@map("quiz_answers")
+}
+
+model NewsUpdate {
+  id          String   @id @default(cuid())
+  title       String
+  slug        String   @unique
+  tag         String?
+  excerpt     String?  @db.Text
+  content     String   @db.Text
+  coverImage  String?
+  isPublished Boolean  @default(false)
+  isLatest    Boolean  @default(false)
+  latestUntil DateTime?
+  publishedAt DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([isPublished])
+  @@index([isLatest])
+  @@index([createdAt])
+  @@map("news_updates")
+}
+
+model Syllabus {
+  id            String   @id @default(cuid())
+  title         String
+  type          String   @default("SYLLABUS")
+  summary       String?  @db.Text
+  content       String?  @db.Text
+  isLatest      Boolean  @default(false)
+  latestUntil   DateTime?
+  eventDateText String?
+  isPublished   Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@index([type])
+  @@index([isPublished])
+  @@map("syllabi")
+}
+
+model PreviousPaper {
+  id            String   @id @default(cuid())
+  title         String
+  year          Int?
+  subject       String?
+  format        String?  @default("PDF")
+  description   String?  @db.Text
+  coverImageUrl String?
+  paperUrl      String?
+  isPublished   Boolean  @default(false)
+  isLatest      Boolean  @default(false)
+  latestUntil   DateTime?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  categoryId String
+  category   Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@index([categoryId])
+  @@index([isPublished])
+  @@index([year])
+  @@map("previous_papers")
+}
