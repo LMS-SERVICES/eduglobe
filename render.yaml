@@ -22,3 +22,4 @@ services:
       # Set in dashboard (Build + Runtime) — required for auth + DB:
       # DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL (your https://...onrender.com URL),
       # RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, NEXT_PUBLIC_* as needed.
+
