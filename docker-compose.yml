@@ -1,0 +1,19 @@
+services:
+  eduglobe-app:
+    container_name: eduglobe-app
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    env_file:
+      - .env
+    environment:
+      NODE_ENV: production
+    networks:
+      - eduglobe-network
+
+networks:
+  eduglobe-network:
+    driver: bridge

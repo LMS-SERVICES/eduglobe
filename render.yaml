@@ -1,0 +1,24 @@
+# Render Blueprint — https://render.com/docs/blueprint-spec
+# Deploy: connect repo → New Blueprint → select this file, or paste into dashboard.
+#
+# Why `npm ci --include=dev`: Render sets NODE_ENV=production during install; without
+# --include=dev, devDependencies (TypeScript, Tailwind, eslint-config-next, etc.) are
+# skipped and `next build` fails.
+
+services:
+  - type: web
+    name: eduglobe-academy
+    runtime: node
+    plan: free
+    region: oregon
+    buildCommand: npm ci --include=dev && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: "20.18.0"
+      # Helps Next.js webpack compile on constrained builders (raise if build still OOMs)
+      - key: NODE_OPTIONS
+        value: --max-old-space-size=4096
+      # Set in dashboard (Build + Runtime) — required for auth + DB:
+      # DATABASE_URL, NEXTAUTH_SECRET, NEXTAUTH_URL (your https://...onrender.com URL),
+      # RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET, NEXT_PUBLIC_* as needed.

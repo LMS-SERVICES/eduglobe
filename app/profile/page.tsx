@@ -399,7 +399,7 @@ export default function ProfilePage() {
               {profileData.enrollments.length === 0 ? (
                 <div className="text-center py-12">
                   <BookOpen className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                  <p className="text-gray-400 mb-4">You haven't enrolled in any courses yet</p>
+                  <p className="text-gray-400 mb-4">You haven&apos;t enrolled in any courses yet</p>
                   <Link href="/courses" className="inline-block px-6 py-3 bg-gradient-primary text-white rounded-lg hover:shadow-lg hover:shadow-primary-500/50 transition-all font-medium">
                     Browse Courses
                   </Link>
@@ -467,7 +467,7 @@ export default function ProfilePage() {
               {profileData.quizEnrollments.length === 0 ? (
                 <div className="text-center py-12">
                   <Award className="w-16 h-16 text-gray-600 mx-auto mb-4" />
-                  <p className="text-gray-400 mb-4">You haven't enrolled in any quizzes yet</p>
+                  <p className="text-gray-400 mb-4">You haven&apos;t enrolled in any quizzes yet</p>
                   <Link href="/quizzes" className="inline-block px-6 py-3 bg-gradient-primary text-white rounded-lg hover:shadow-lg hover:shadow-primary-500/50 transition-all font-medium">
                     Browse Quizzes
                   </Link>

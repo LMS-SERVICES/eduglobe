@@ -4,12 +4,6 @@ import { useEffect, useState } from 'react'
 import Image from 'next/image'
 import { Search } from 'lucide-react'
 
-export const metadata = {
-  title: 'Previous Year Questions Papers – EduGlobe Academy',
-  description:
-    'Previous year question papers with solutions for TET, DSC, and competitive exams.',
-}
-
 interface Category {
   id: string
   name: string
