@@ -4,6 +4,7 @@ import { useState } from 'react'
 import Script from 'next/script'
 import { useRouter } from 'next/navigation'
 import { useSession } from 'next-auth/react'
+import { toastError, toastSuccess } from '@/lib/toast'
 
 interface RazorpayCheckoutProps {
   entityType: 'course' | 'quiz' | 'mockTest'
@@ -83,12 +84,13 @@ export default function RazorpayCheckout({
             const verifyData = await verifyResponse.json()
             if (!verifyResponse.ok) throw new Error(verifyData.error || 'Payment verification failed')
 
+            toastSuccess('Payment successful', 'Your enrollment is confirmed.')
             if (onSuccess) onSuccess()
             else if (entityType === 'quiz') router.push(`/quizzes/${entityId}/take`)
             else if (entityType === 'mockTest') router.push(`/mock-test/${entityId}/take`)
             else router.refresh()
           } catch (err: any) {
-            alert(err.message || 'Payment verification failed')
+            toastError('Payment verification failed', err.message || 'Please contact support if money was debited.')
           } finally {
             setLoading(false)
           }
@@ -107,12 +109,12 @@ export default function RazorpayCheckout({
 
       const paymentObject = new window.Razorpay(options)
       paymentObject.on('payment.failed', function (response: any) {
-        alert(response?.error?.description || 'Payment failed')
+        toastError('Payment failed', response?.error?.description || 'You can try again in a moment.')
         setLoading(false)
       })
       paymentObject.open()
     } catch (error: any) {
-      alert(error.message || 'Failed to initiate payment')
+      toastError('Could not start payment', error.message || 'Please try again.')
       setLoading(false)
     }
   }

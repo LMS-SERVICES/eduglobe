@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, Edit, Trash2, Eye, EyeOff } from 'lucide-react'
 import Link from 'next/link'
+import { toastError, toastSuccess } from '@/lib/toast'
 
 interface Course {
   id: string
@@ -46,9 +47,16 @@ export default function AdminCoursesPage() {
     if (!confirm('Are you sure you want to delete this course?')) return
     try {
       const res = await fetch(`/api/admin/courses/${id}`, { method: 'DELETE' })
-      if (res.ok) setCourses(courses.filter((c) => c.id !== id))
-      else alert('Failed to delete course')
-    } catch { alert('Failed to delete course') }
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setCourses(courses.filter((c) => c.id !== id))
+        toastSuccess('Course deleted', 'The course has been removed.')
+      } else {
+        toastError('Could not delete course', data.error || 'Please try again.')
+      }
+    } catch {
+      toastError('Could not delete course', 'Check your connection and try again.')
+    }
   }
 
   const handleTogglePublish = async (id: string, currentStatus: boolean) => {
@@ -58,10 +66,19 @@ export default function AdminCoursesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isPublished: !currentStatus }),
       })
+      const data = await res.json().catch(() => ({}))
       if (res.ok) {
         setCourses(courses.map((c) => c.id === id ? { ...c, isPublished: !currentStatus } : c))
+        toastSuccess(
+          currentStatus ? 'Course unpublished' : 'Course published',
+          currentStatus ? 'Learners will no longer see it in the catalog.' : 'It is now visible in the catalog.'
+        )
+      } else {
+        toastError('Could not update status', data.error || 'Please try again.')
       }
-    } catch { alert('Failed to update course status') }
+    } catch {
+      toastError('Could not update status', 'Check your connection and try again.')
+    }
   }
 
   const filteredCourses = courses.filter((c) =>

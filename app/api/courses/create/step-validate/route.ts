@@ -19,29 +19,42 @@ const step3Schema = z.object({
   requirements: z.array(z.string()).min(1, 'At least one requirement is required'),
 })
 
+const emptyToUndef = (v: unknown) => {
+  if (v === null || v === undefined) return undefined
+  if (typeof v === 'string' && v.trim() === '') return undefined
+  return typeof v === 'string' ? v.trim() : v
+}
+
+const optionalUrl = z.preprocess(emptyToUndef, z.string().url().optional())
+
 const step4Schema = z.object({
   sections: z.array(
     z.object({
       title: z.string().min(1, 'Section title is required'),
-      lessons: z.array(
+      subsections: z.array(
         z.object({
-          title: z.string().min(1, 'Lesson title is required'),
-          type: z.enum(['video', 'document', 'quiz']),
-          videoUrl: z.string().url().optional().nullable(),
-          documentUrl: z.string().url().optional().nullable(),
-          quizId: z.string().optional().nullable(),
-        }).superRefine((lesson, ctx) => {
-          if (lesson.type === 'video' && !lesson.videoUrl) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Video URL is required for video lesson' })
-          }
-          if (lesson.type === 'document' && !lesson.documentUrl) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Document URL is required for document lesson' })
-          }
-          if (lesson.type === 'quiz' && !lesson.quizId) {
-            ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Quiz selection is required for quiz lesson' })
-          }
+          title: z.string().min(1, 'Subsection title is required'),
+          lessons: z.array(
+            z.object({
+              title: z.string().min(1, 'Lesson title is required'),
+              type: z.enum(['video', 'document', 'quiz']),
+              videoUrl: optionalUrl,
+              documentUrl: optionalUrl,
+              quizId: z.preprocess(emptyToUndef, z.string().optional()),
+            }).superRefine((lesson, ctx) => {
+              if (lesson.type === 'video' && !lesson.videoUrl) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Video URL is required for video lesson' })
+              }
+              if (lesson.type === 'document' && !lesson.documentUrl) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Document URL is required for document lesson' })
+              }
+              if (lesson.type === 'quiz' && !lesson.quizId) {
+                ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Quiz selection is required for quiz lesson' })
+              }
+            })
+          ).min(1, 'Each subsection must have at least one lesson'),
         })
-      ).min(1, 'Each section must have at least one lesson'),
+      ).min(1, 'Each section must have at least one subsection'),
     })
   ).min(1, 'At least one section is required'),
 })

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import RazorpayCheckout from '@/components/RazorpayCheckout'
+import { toastError, toastSuccess } from '@/lib/toast'
 
 interface MockTest {
   id: string
@@ -54,9 +55,10 @@ export default function MockTestDetailPage() {
     const enroll = await fetch(`/api/mock-tests/${id}/enroll`, { method: 'POST' })
     if (!enroll.ok) {
       const data = await enroll.json().catch(() => ({}))
-      alert(data.error || 'Unable to start mock test')
+      toastError('Could not start mock test', data.error || 'Please try again.')
       return
     }
+    toastSuccess('Good luck', 'The test is opening.')
     router.push(`/mock-test/${id}/take`)
   }
 

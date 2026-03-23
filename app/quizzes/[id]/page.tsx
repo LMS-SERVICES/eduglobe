@@ -7,6 +7,7 @@ import Link from 'next/link'
 import Image from 'next/image'
 import { ArrowLeft, Users, CheckCircle, Clock } from 'lucide-react'
 import RazorpayCheckout from '@/components/RazorpayCheckout'
+import { toastError, toastSuccess } from '@/lib/toast'
 
 interface Quiz {
   id: string
@@ -57,9 +58,16 @@ export default function QuizDetailPage() {
     setEnrolling(true)
     try {
       const res = await fetch(`/api/quizzes/${id}/enroll`, { method: 'POST' })
-      if (res.ok) router.push(`/quizzes/${id}/take`)
-      else { const data = await res.json(); alert(data.error || 'Failed to enroll') }
-    } catch { alert('Failed to enroll') }
+      if (res.ok) {
+        toastSuccess('Ready to start', 'Opening the quiz…')
+        router.push(`/quizzes/${id}/take`)
+      } else {
+        const data = await res.json().catch(() => ({}))
+        toastError('Could not enroll', data.error || 'Please try again.')
+      }
+    } catch {
+      toastError('Could not enroll', 'Check your connection and try again.')
+    }
     finally { setEnrolling(false) }
   }
 
@@ -94,7 +102,15 @@ export default function QuizDetailPage() {
                   </div>
                 )}
                 <div className="mb-4">
-                  <span className="text-2xl font-bold text-primary">{quiz.price > 0 ? `₹${quiz.price}` : 'Free'}</span>
+                  {enrollment?.freeViaCourse && quiz.price > 0 && !enrollment?.enrolled ? (
+                    <div>
+                      <span className="text-lg text-slate-400 line-through">₹{quiz.price}</span>
+                      <p className="text-base font-semibold text-green-700 mt-1">Included with your course</p>
+                      <p className="text-xs text-slate-500 mt-1">No separate quiz payment required.</p>
+                    </div>
+                  ) : (
+                    <span className="text-2xl font-bold text-primary">{quiz.price > 0 ? `₹${quiz.price}` : 'Free'}</span>
+                  )}
                 </div>
                 {isCompleted ? (
                   <div className="space-y-3">
@@ -114,7 +130,7 @@ export default function QuizDetailPage() {
                   <Link href={`/quizzes/${id}/take`} className="block w-full py-3 bg-accent-orange text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors text-center">
                     Continue Quiz
                   </Link>
-                ) : quiz.price > 0 ? (
+                ) : quiz.price > 0 && !enrollment?.freeViaCourse ? (
                   <RazorpayCheckout
                     entityType="quiz"
                     entityId={quiz.id}
@@ -127,7 +143,11 @@ export default function QuizDetailPage() {
                   </RazorpayCheckout>
                 ) : (
                   <button onClick={handleEnroll} disabled={enrolling} className="w-full py-3 bg-accent-orange text-white rounded-lg font-semibold hover:bg-orange-600 transition-colors disabled:opacity-50">
-                    {enrolling ? 'Enrolling...' : quiz.price > 0 ? 'Enroll Now' : 'Start Quiz'}
+                    {enrolling
+                      ? 'Enrolling...'
+                      : enrollment?.freeViaCourse && quiz.price > 0
+                        ? 'Start quiz (from your course)'
+                        : 'Start Quiz'}
                   </button>
                 )}
               </div>

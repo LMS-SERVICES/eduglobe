@@ -17,16 +17,8 @@ interface RichTextEditorProps {
 
 export default function RichTextEditor({ value, onChange, placeholder, minHeightClassName = 'min-h-[150px]' }: RichTextEditorProps) {
   const [mounted, setMounted] = useState(false)
-
   useEffect(() => {
     setMounted(true)
-    // @ts-ignore
-    import('react-quill/dist/quill.snow.css').catch(() => {
-      const link = document.createElement('link')
-      link.rel = 'stylesheet'
-      link.href = 'https://cdn.quilljs.com/1.3.6/quill.snow.css'
-      document.head.appendChild(link)
-    })
   }, [])
 
   const modules = {

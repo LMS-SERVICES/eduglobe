@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { hasQuizAccessViaCourseEnrollment } from '@/lib/quiz-course-access'
 
 export async function GET(
   request: NextRequest,
@@ -23,7 +24,10 @@ export async function GET(
       },
     })
 
-    if (!enrollment) return NextResponse.json({ enrolled: false })
+    if (!enrollment) {
+      const freeViaCourse = await hasQuizAccessViaCourseEnrollment(session.user.id, params.id)
+      return NextResponse.json({ enrolled: false, freeViaCourse })
+    }
 
     const latestAttempt = await prisma.quizAttempt.findFirst({
       where: { enrollmentId: enrollment.id },

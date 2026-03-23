@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Plus, Edit, Trash2, Save, X, Tag } from 'lucide-react'
+import { toastError, toastSuccess } from '@/lib/toast'
 
 interface Category {
   id: string
@@ -63,7 +64,12 @@ export default function AdminCategoriesPage() {
         body: JSON.stringify({ name: formData.name, description: formData.description || null, icon: formData.icon || null }),
       })
       const data = await res.json()
-      if (!res.ok) { setError(data.error || 'Failed to save category'); return }
+      if (!res.ok) {
+        setError(data.error || 'Failed to save category')
+        toastError('Could not save category', data.error || 'Please check the form and try again.')
+        return
+      }
+      toastSuccess(editingCategory ? 'Category updated' : 'Category created', 'Your changes are saved.')
       await fetchCategories()
       handleCloseForm()
     } catch { setError('Something went wrong') }
@@ -75,9 +81,15 @@ export default function AdminCategoriesPage() {
     try {
       const res = await fetch(`/api/admin/categories/${id}`, { method: 'DELETE' })
       const data = await res.json()
-      if (!res.ok) { alert(data.error || 'Failed to delete'); return }
+      if (!res.ok) {
+        toastError('Could not delete category', data.error || 'Please try again.')
+        return
+      }
+      toastSuccess('Category deleted', `"${name}" has been removed.`)
       await fetchCategories()
-    } catch { alert('Something went wrong') }
+    } catch {
+      toastError('Something went wrong', 'Check your connection and try again.')
+    }
   }
 
   if (loading) {

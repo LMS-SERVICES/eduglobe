@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { Plus, Edit, Trash2, Newspaper, Eye, EyeOff } from 'lucide-react'
+import { toastError, toastSuccess } from '@/lib/toast'
 
 interface NewsUpdate {
   id: string
@@ -44,12 +45,13 @@ export default function AdminNewsUpdatesPage() {
       const res = await fetch(`/api/admin/news-updates/${id}`, { method: 'DELETE' })
       const data = await res.json()
       if (!res.ok) {
-        alert(data.error || 'Failed to delete')
+        toastError('Could not delete', data.error || 'Please try again.')
         return
       }
+      toastSuccess('News item deleted', `"${title}" has been removed.`)
       await fetchItems()
     } catch {
-      alert('Something went wrong')
+      toastError('Something went wrong', 'Check your connection and try again.')
     }
   }
 
@@ -62,12 +64,16 @@ export default function AdminNewsUpdatesPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        alert(data.error || 'Failed to update status')
+        toastError('Could not update status', data.error || 'Please try again.')
         return
       }
+      toastSuccess(
+        !item.isPublished ? 'Published' : 'Unpublished',
+        !item.isPublished ? 'The article is visible on the site.' : 'The article is hidden from the site.'
+      )
       await fetchItems()
     } catch {
-      alert('Something went wrong')
+      toastError('Something went wrong', 'Check your connection and try again.')
     }
   }
 

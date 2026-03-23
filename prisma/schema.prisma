@@ -165,10 +165,25 @@ model Section {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  lessons Lesson[]
+  subsections SubSection[]
 
   @@index([courseId])
   @@map("sections")
+}
+
+model SubSection {
+  id        String   @id @default(cuid())
+  title     String
+  order     Int
+  sectionId String
+  section   Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lessons Lesson[]
+
+  @@index([sectionId])
+  @@map("subsections")
 }
 
 model Lesson {
@@ -180,14 +195,14 @@ model Lesson {
   type        String
   order       Int
   isPreview   Boolean  @default(false)
-  sectionId   String
-  section     Section  @relation(fields: [sectionId], references: [id], onDelete: Cascade)
+  subsectionId String
+  subsection   SubSection @relation(fields: [subsectionId], references: [id], onDelete: Cascade)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
   progress LessonProgress[]
 
-  @@index([sectionId])
+  @@index([subsectionId])
   @@map("lessons")
 }
 

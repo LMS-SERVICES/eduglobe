@@ -409,7 +409,7 @@ export default function ProfilePage() {
                   {profileData.enrollments.map((enrollment) => (
                     <Link
                       key={enrollment.id}
-                      href={`/courses/${enrollment.course.id}`}
+                      href={`/courses/${enrollment.course.id}/learn`}
                       className="block bg-dark-800 rounded-lg p-4 border border-dark-700 hover:border-primary-500 transition-all group"
                     >
                       <div className="flex gap-4">

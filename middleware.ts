@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server'
 
 export default withAuth(
   function middleware(req) {
+    const requestHeaders = new Headers(req.headers)
+    requestHeaders.set('x-pathname', req.nextUrl.pathname)
+
     const token = req.nextauth.token
     const isAdmin = token?.role === 'ADMIN'
     const isAdminRoute = req.nextUrl.pathname.startsWith('/admin')
@@ -11,23 +14,24 @@ export default withAuth(
       return NextResponse.redirect(new URL('/', req.url))
     }
 
-    return NextResponse.next()
+    return NextResponse.next({ request: { headers: requestHeaders } })
   },
   {
     callbacks: {
       authorized: ({ token, req }) => {
-        const isAdminRoute = req.nextUrl.pathname.startsWith('/admin')
-
-        if (isAdminRoute) {
+        const p = req.nextUrl.pathname
+        if (p.startsWith('/admin')) {
           return token?.role === 'ADMIN'
         }
-
-        return !!token
+        if (p.startsWith('/embed')) {
+          return !!token
+        }
+        return true
       },
     },
   }
 )
 
 export const config = {
-  matcher: ['/admin/:path*'],
+  matcher: ['/admin/:path*', '/embed/:path*'],
 }

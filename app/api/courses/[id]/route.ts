@@ -14,8 +14,11 @@ export async function GET(
         sections: {
           orderBy: { order: 'asc' },
           include: {
-            lessons: {
+            subsections: {
               orderBy: { order: 'asc' },
+              include: {
+                lessons: { orderBy: { order: 'asc' } },
+              },
             },
           },
         },

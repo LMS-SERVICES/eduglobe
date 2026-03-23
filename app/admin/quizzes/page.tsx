@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import { Plus, Search, Edit, Trash2, Eye, EyeOff, Users } from 'lucide-react'
 import Link from 'next/link'
+import { toastError, toastSuccess } from '@/lib/toast'
 
 interface Quiz {
   id: string
@@ -32,9 +33,16 @@ export default function AdminQuizzesPage() {
     if (!confirm('Are you sure you want to delete this quiz?')) return
     try {
       const res = await fetch(`/api/admin/quizzes/${id}`, { method: 'DELETE' })
-      if (res.ok) setQuizzes(quizzes.filter((q) => q.id !== id))
-      else alert('Failed to delete quiz')
-    } catch { alert('Failed to delete quiz') }
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setQuizzes(quizzes.filter((q) => q.id !== id))
+        toastSuccess('Quiz deleted', 'The quiz has been removed.')
+      } else {
+        toastError('Could not delete quiz', data.error || 'Please try again.')
+      }
+    } catch {
+      toastError('Could not delete quiz', 'Check your connection and try again.')
+    }
   }
 
   const handleTogglePublish = async (id: string, currentStatus: boolean) => {
@@ -44,8 +52,19 @@ export default function AdminQuizzesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ isPublished: !currentStatus }),
       })
-      if (res.ok) setQuizzes(quizzes.map((q) => q.id === id ? { ...q, isPublished: !currentStatus } : q))
-    } catch { alert('Failed to update quiz') }
+      const data = await res.json().catch(() => ({}))
+      if (res.ok) {
+        setQuizzes(quizzes.map((q) => q.id === id ? { ...q, isPublished: !currentStatus } : q))
+        toastSuccess(
+          currentStatus ? 'Quiz unpublished' : 'Quiz published',
+          currentStatus ? 'It is hidden from learners.' : 'It is visible in the catalog.'
+        )
+      } else {
+        toastError('Could not update quiz', data.error || 'Please try again.')
+      }
+    } catch {
+      toastError('Could not update quiz', 'Check your connection and try again.')
+    }
   }
 
   const getQuestionCount = (quiz: Quiz) => quiz.sections?.reduce((sum, s) => sum + (s.questions?.length || 0), 0) || 0

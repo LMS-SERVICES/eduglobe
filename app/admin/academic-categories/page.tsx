@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { Plus, Edit, Trash2, Save, X, Tag } from 'lucide-react'
+import { toastError, toastSuccess } from '@/lib/toast'
 
 interface AcademicCategory {
   id: string
@@ -57,8 +58,10 @@ export default function AdminAcademicCategoriesPage() {
     const data = await res.json()
     if (!res.ok) {
       setError(data.error || 'Failed to save')
+      toastError('Could not save', data.error || 'Please check the form and try again.')
       return
     }
+    toastSuccess(editing ? 'Category updated' : 'Category created', 'Your changes are saved.')
     setShowForm(false)
     await fetchItems()
   }
@@ -68,9 +71,10 @@ export default function AdminAcademicCategoriesPage() {
     const res = await fetch(`/api/admin/academic-categories/${item.id}`, { method: 'DELETE' })
     const data = await res.json()
     if (!res.ok) {
-      alert(data.error || 'Failed to delete')
+      toastError('Could not delete', data.error || 'Please try again.')
       return
     }
+    toastSuccess('Category deleted', `"${item.name}" has been removed.`)
     await fetchItems()
   }
 

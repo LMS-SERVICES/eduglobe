@@ -2,7 +2,17 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { Prisma } from '@prisma/client'
 import { z } from 'zod'
+import { DATABASE_UNAVAILABLE_MESSAGE } from '@/lib/prisma-route-errors'
+
+const emptyToUndef = (v: unknown) => {
+  if (v === null || v === undefined) return undefined
+  if (typeof v === 'string' && v.trim() === '') return undefined
+  return typeof v === 'string' ? v.trim() : v
+}
+
+const optionalUrl = z.preprocess(emptyToUndef, z.string().url('Invalid URL').optional())
 
 const courseSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters'),
@@ -24,20 +34,26 @@ const courseSchema = z.object({
     z.object({
       title: z.string().min(1, 'Section title is required'),
       order: z.number(),
-      lessons: z.array(
+      subsections: z.array(
         z.object({
-          title: z.string().min(1, 'Lesson title is required'),
-          description: z.string().optional(),
-          content: z.string().optional(), // backward compatibility
-          videoUrl: z.string().url('Invalid video URL').optional(),
-          documentUrl: z.string().url('Invalid document URL').optional(),
-          quizId: z.string().optional(),
-          duration: z.string().optional(),
-          type: z.enum(['video', 'document', 'quiz']),
+          title: z.string().min(1, 'Subsection title is required'),
           order: z.number(),
-          isPreview: z.boolean().default(false),
+          lessons: z.array(
+            z.object({
+              title: z.string().min(1, 'Lesson title is required'),
+              description: z.string().optional(),
+              content: z.string().optional(),
+              videoUrl: optionalUrl,
+              documentUrl: optionalUrl,
+              quizId: z.preprocess(emptyToUndef, z.string().optional()),
+              duration: z.string().optional(),
+              type: z.enum(['video', 'document', 'quiz']),
+              order: z.number(),
+              isPreview: z.boolean().default(false),
+            })
+          ).min(1, 'Each subsection must have at least one lesson'),
         })
-      ).min(1, 'Each section must have at least one lesson'),
+      ).min(1, 'Each section must have at least one subsection'),
     })
   ).min(1, 'At least one section is required'),
 })
@@ -76,7 +92,8 @@ export async function POST(request: NextRequest) {
     const finalSlug = existingCourse ? `${slug}-${Date.now()}` : slug
 
     const totalLessons = validatedData.sections.reduce(
-      (sum, section) => sum + section.lessons.length,
+      (sum, section) =>
+        sum + section.subsections.reduce((subSum, sub) => subSum + sub.lessons.length, 0),
       0
     )
 
@@ -89,33 +106,43 @@ export async function POST(request: NextRequest) {
     }
 
     const totalDurationSeconds = validatedData.sections.reduce((total, section) => {
-      return total + section.lessons.reduce((sectionTotal, lesson) => {
-        return lesson.type === 'video'
-          ? sectionTotal + parseDuration(lesson.duration || '0:00')
-          : sectionTotal
-      }, 0)
+      return (
+        total +
+        section.subsections.reduce(
+          (subTotal, sub) =>
+            subTotal +
+            sub.lessons.reduce((sectionTotal, lesson) => {
+              return lesson.type === 'video'
+                ? sectionTotal + parseDuration(lesson.duration || '0:00')
+                : sectionTotal
+            }, 0),
+          0
+        )
+      )
     }, 0)
 
     // Type-specific lesson validation
     for (const section of validatedData.sections) {
-      for (const lesson of section.lessons) {
-        if (lesson.type === 'video' && !lesson.videoUrl) {
-          return NextResponse.json(
-            { error: `Video URL is required for lesson "${lesson.title}"` },
-            { status: 400 }
-          )
-        }
-        if (lesson.type === 'document' && !lesson.documentUrl) {
-          return NextResponse.json(
-            { error: `Document URL is required for lesson "${lesson.title}"` },
-            { status: 400 }
-          )
-        }
-        if (lesson.type === 'quiz' && !lesson.quizId) {
-          return NextResponse.json(
-            { error: `Quiz selection is required for lesson "${lesson.title}"` },
-            { status: 400 }
-          )
+      for (const sub of section.subsections) {
+        for (const lesson of sub.lessons) {
+          if (lesson.type === 'video' && !lesson.videoUrl) {
+            return NextResponse.json(
+              { error: `Video URL is required for lesson "${lesson.title}"` },
+              { status: 400 }
+            )
+          }
+          if (lesson.type === 'document' && !lesson.documentUrl) {
+            return NextResponse.json(
+              { error: `Document URL is required for lesson "${lesson.title}"` },
+              { status: 400 }
+            )
+          }
+          if (lesson.type === 'quiz' && !lesson.quizId) {
+            return NextResponse.json(
+              { error: `Quiz selection is required for lesson "${lesson.title}"` },
+              { status: 400 }
+            )
+          }
         }
       }
     }
@@ -155,20 +182,26 @@ export async function POST(request: NextRequest) {
           create: validatedData.sections.map((section) => ({
             title: section.title,
             order: section.order,
-            lessons: {
-              create: section.lessons.map((lesson) => ({
-                title: lesson.title,
-                description: lesson.description,
-                content:
-                  lesson.type === 'video'
-                    ? lesson.videoUrl || lesson.content || null
-                    : lesson.type === 'document'
-                    ? lesson.documentUrl || lesson.content || null
-                    : lesson.quizId || lesson.content || null,
-                duration: lesson.duration || '0:00',
-                type: lesson.type,
-                order: lesson.order,
-                isPreview: lesson.isPreview,
+            subsections: {
+              create: section.subsections.map((sub) => ({
+                title: sub.title,
+                order: sub.order,
+                lessons: {
+                  create: sub.lessons.map((lesson) => ({
+                    title: lesson.title,
+                    description: lesson.description,
+                    content:
+                      lesson.type === 'video'
+                        ? lesson.videoUrl || lesson.content || null
+                        : lesson.type === 'document'
+                          ? lesson.documentUrl || lesson.content || null
+                          : lesson.quizId || lesson.content || null,
+                    duration: lesson.duration || '0:00',
+                    type: lesson.type,
+                    order: lesson.order,
+                    isPreview: lesson.isPreview,
+                  })),
+                },
               })),
             },
           })),
@@ -183,7 +216,11 @@ export async function POST(request: NextRequest) {
       include: {
         instructor: true,
         category: true,
-        sections: { include: { lessons: true } },
+        sections: {
+          include: {
+            subsections: { include: { lessons: true } },
+          },
+        },
         whatYouWillLearn: true,
         requirements: true,
         rating: true,
@@ -191,9 +228,12 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json(course, { status: 201 })
-  } catch (error: any) {
+  } catch (error: unknown) {
     if (error instanceof z.ZodError) {
       return NextResponse.json({ error: error.errors[0].message }, { status: 400 })
+    }
+    if (error instanceof Prisma.PrismaClientInitializationError) {
+      return NextResponse.json({ error: DATABASE_UNAVAILABLE_MESSAGE }, { status: 503 })
     }
     console.error('Error creating course:', error)
     return NextResponse.json({ error: 'Failed to create course' }, { status: 500 })

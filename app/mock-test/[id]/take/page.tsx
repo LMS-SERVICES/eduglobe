@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useSession } from 'next-auth/react'
 import Link from 'next/link'
+import { toastError, toastSuccess, toastWarning } from '@/lib/toast'
 
 interface Option { id: string; option: string }
 interface Question { id: string; question: string; questionImageUrl?: string | null; marks: number; negativeMarks: number; options: Option[] }
@@ -116,13 +117,13 @@ export default function TakeMockTestPage() {
       const isBack = (e.altKey && key === 'arrowleft') || (e.metaKey && key === '[')
       if (isRefresh || isBack) {
         e.preventDefault()
-        alert('Refresh/back is disabled during the test. Please submit the test first.')
+        toastWarning('Test in progress', 'Refresh and back navigation are disabled until you submit.')
       }
     }
 
     const handlePopState = () => {
       window.history.pushState(null, '', window.location.href)
-      alert('Back navigation is disabled during the test. Please submit the test first.')
+      toastWarning('Test in progress', 'Use the sidebar to move between questions, or submit when finished.')
     }
 
     window.addEventListener('beforeunload', handleBeforeUnload)
@@ -162,12 +163,13 @@ export default function TakeMockTestPage() {
       })
       const data = await res.json()
       if (!res.ok) {
-        alert(data.error || 'Failed to submit mock test')
+        toastError('Could not submit', data.error || 'Please try again.')
         return
       }
       setResult(data)
+      toastSuccess('Test submitted', 'Your score is shown below.')
     } catch {
-      alert('Failed to submit mock test')
+      toastError('Could not submit', 'Check your connection and try again.')
     } finally {
       setSubmitting(false)
     }

@@ -26,6 +26,22 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    /** Neon (and similar) can return P1001 on first touch after sleep — retry once after a short delay. */
+    const withConnectionRetry = async <T>(run: () => Promise<T>): Promise<T> => {
+      try {
+        return await run()
+      } catch (error) {
+        if (
+          error instanceof Prisma.PrismaClientKnownRequestError &&
+          (error.code === 'P1001' || error.code === 'P1017')
+        ) {
+          await new Promise((r) => setTimeout(r, 2500))
+          return await run()
+        }
+        throw error
+      }
+    }
+
     const [
       totalCourses,
       publishedCourses,
@@ -45,7 +61,8 @@ export async function GET(request: NextRequest) {
       lastMonthPublishedQuizzes,
       lastMonthCategories,
       lastMonthUsers,
-    ] = await Promise.all([
+    ] = await withConnectionRetry(() =>
+      Promise.all([
       safe(() => prisma.course.count()),
       safe(() => prisma.course.count({ where: { isPublished: true } })),
       safe(() => prisma.category.count()),
@@ -64,7 +81,8 @@ export async function GET(request: NextRequest) {
       safe(() => prisma.quiz.count({ where: { isPublished: true, createdAt: { gte: lastMonthStart, lt: thisMonthStart } } })),
       safe(() => prisma.category.count({ where: { createdAt: { gte: lastMonthStart, lt: thisMonthStart } } })),
       safe(() => prisma.user.count({ where: { createdAt: { gte: lastMonthStart, lt: thisMonthStart } } })),
-    ])
+      ])
+    )
 
     const calcChange = (current: number, previous: number) => {
       if (previous === 0) return current > 0 ? 100 : 0

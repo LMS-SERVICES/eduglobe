@@ -43,68 +43,70 @@ export async function POST(request: NextRequest) {
     const exists = await prisma.mockTest.findUnique({ where: { slug: baseSlug } })
     const slug = exists ? `${baseSlug}-${Date.now()}` : baseSlug
 
-    const created = await prisma.$transaction(async (tx) => {
-      const mock = await tx.mockTest.create({
-        data: {
-          title: body.title,
-          slug,
-          description: body.description || null,
-          instructions: body.instructions || null,
-          thumbnail: body.thumbnail || null,
-          durationMinutes: Number(body.durationMinutes || 60),
-          isFree: !!body.isFree,
-          price: Number(body.price || 0),
-          isPublished: !!body.isPublished,
-        },
-      })
-
-      for (let si = 0; si < (body.sections || []).length; si++) {
-        const section = body.sections[si]
-        const sectionRow = await tx.mockTestSection.create({
+    // Avoid Promise.all parallel writes inside interactive $transaction — breaks with Neon/pooler (P2028).
+    // Use nested creates (single round-trip per question) instead.
+    const created = await prisma.$transaction(
+      async (tx) => {
+        const mock = await tx.mockTest.create({
           data: {
-            mockTestId: mock.id,
-            title: section.title,
-            order: si + 1,
+            title: body.title,
+            slug,
+            description: body.description || null,
+            instructions: body.instructions || null,
+            thumbnail: body.thumbnail || null,
+            durationMinutes: Number(body.durationMinutes || 60),
+            isFree: !!body.isFree,
+            price: Number(body.price || 0),
+            isPublished: !!body.isPublished,
           },
         })
 
-        for (let qi = 0; qi < (section.questions || []).length; qi++) {
-          const q = section.questions[qi]
-          const questionRow = await tx.mockTestQuestion.create({
+        for (let si = 0; si < (body.sections || []).length; si++) {
+          const section = body.sections[si]
+          const sectionRow = await tx.mockTestSection.create({
             data: {
-              sectionId: sectionRow.id,
-              question: q.question,
-              questionImageUrl: q.questionImageUrl || null,
-              marks: Number(q.marks || 1),
-              negativeMarks: Number(q.negativeMarks || 0),
-              order: qi + 1,
+              mockTestId: mock.id,
+              title: section.title,
+              order: si + 1,
             },
           })
 
-          const optionRows = await Promise.all(
-            (q.options || []).map((opt: any, oi: number) =>
-              tx.mockTestOption.create({
-                data: {
-                  questionId: questionRow.id,
-                  option: opt.option,
-                  order: oi,
+          for (let qi = 0; qi < (section.questions || []).length; qi++) {
+            const q = section.questions[qi]
+            const opts = Array.isArray(q.options) ? q.options : []
+            const questionRow = await tx.mockTestQuestion.create({
+              data: {
+                sectionId: sectionRow.id,
+                question: q.question,
+                questionImageUrl: q.questionImageUrl || null,
+                marks: Number(q.marks || 1),
+                negativeMarks: Number(q.negativeMarks || 0),
+                order: qi + 1,
+                options: {
+                  create: opts.map((opt: { option: string }, oi: number) => ({
+                    option: opt.option,
+                    order: oi,
+                  })),
                 },
-              })
-            )
-          )
-
-          const cIdx = Number(q.correctOptionIndex ?? -1)
-          if (cIdx >= 0 && optionRows[cIdx]) {
-            await tx.mockTestQuestion.update({
-              where: { id: questionRow.id },
-              data: { correctOptionId: optionRows[cIdx].id },
+              },
+              include: { options: true },
             })
+
+            const sortedOpts = [...questionRow.options].sort((a, b) => a.order - b.order)
+            const cIdx = Number(q.correctOptionIndex ?? -1)
+            if (cIdx >= 0 && sortedOpts[cIdx]) {
+              await tx.mockTestQuestion.update({
+                where: { id: questionRow.id },
+                data: { correctOptionId: sortedOpts[cIdx].id },
+              })
+            }
           }
         }
-      }
 
-      return mock
-    })
+        return mock
+      },
+      { maxWait: 15_000, timeout: 120_000 }
+    )
 
     return NextResponse.json({ id: created.id }, { status: 201 })
   } catch (error) {

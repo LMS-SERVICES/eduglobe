@@ -7,6 +7,31 @@ import Image from 'next/image'
 import { ArrowLeft, BookOpen, Clock, Users, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react'
 import { useSession } from 'next-auth/react'
 import RazorpayCheckout from '@/components/RazorpayCheckout'
+import { toastError, toastSuccess } from '@/lib/toast'
+
+type LessonRow = {
+  id: string
+  title: string
+  duration: string
+  type: string
+  isPreview: boolean
+}
+
+/** New: section → subsections → lessons. Legacy: section.lessons only */
+type CourseSection = {
+  id: string
+  title: string
+  order: number
+  lessons?: LessonRow[]
+  subsections?: { id: string; title: string; order: number; lessons: LessonRow[] }[]
+}
+
+function sectionLessonCount(section: CourseSection): number {
+  if (section.subsections?.length) {
+    return section.subsections.reduce((n, sub) => n + (sub.lessons?.length || 0), 0)
+  }
+  return section.lessons?.length || 0
+}
 
 interface Course {
   id: string
@@ -23,18 +48,7 @@ interface Course {
   studentsCount: number
   instructor: { name: string; bio?: string; image?: string }
   category: { name: string }
-  sections: {
-    id: string
-    title: string
-    order: number
-    lessons: {
-      id: string
-      title: string
-      duration: string
-      type: string
-      isPreview: boolean
-    }[]
-  }[]
+  sections: CourseSection[]
   whatYouWillLearn: { id: string; content: string }[]
   requirements: { id: string; content: string }[]
   rating?: { averageRating: number; totalReviews: number } | null
@@ -48,6 +62,7 @@ export default function CourseDetailPage() {
   const [enrolling, setEnrolling] = useState(false)
   const [enrolled, setEnrolled] = useState(false)
   const [expandedSections, setExpandedSections] = useState<Set<string>>(new Set())
+  const [expandedSubsections, setExpandedSubsections] = useState<Set<string>>(new Set())
 
   useEffect(() => {
     if (!id) return
@@ -59,7 +74,10 @@ export default function CourseDetailPage() {
         setCourse(data)
         setEnrolled(!!enrollmentData?.enrolled)
         if (data?.sections?.[0]) {
-          setExpandedSections(new Set([data.sections[0].id]))
+          const first = data.sections[0]
+          setExpandedSections(new Set([first.id]))
+          const subIds = first.subsections?.map((s: { id: string }) => s.id) ?? []
+          setExpandedSubsections(new Set(subIds))
         }
       })
       .catch(console.error)
@@ -73,10 +91,11 @@ export default function CourseDetailPage() {
       const res = await fetch(`/api/courses/${id}/enroll`, { method: 'POST' })
       const data = await res.json().catch(() => ({}))
       if (!res.ok) {
-        alert(data?.error || 'Failed to enroll')
+        toastError('Could not enroll', data?.error || 'Please try again.')
         return
       }
       setEnrolled(true)
+      toastSuccess('You are enrolled', 'Continue learning from this page.')
     } finally {
       setEnrolling(false)
     }
@@ -87,6 +106,15 @@ export default function CourseDetailPage() {
       const next = new Set(prev)
       if (next.has(sectionId)) next.delete(sectionId)
       else next.add(sectionId)
+      return next
+    })
+  }
+
+  const toggleSubsection = (subsectionId: string) => {
+    setExpandedSubsections((prev) => {
+      const next = new Set(prev)
+      if (next.has(subsectionId)) next.delete(subsectionId)
+      else next.add(subsectionId)
       return next
     })
   }
@@ -151,8 +179,11 @@ export default function CourseDetailPage() {
                   <p className="text-sm text-slate-500 mb-4">Duration: {course.timeline}</p>
                 )}
                 {enrolled ? (
-                  <Link href="/profile" className="block w-full py-3 bg-green-600 text-white rounded-lg font-semibold text-center">
-                    Enrolled - View in Profile
+                  <Link
+                    href={`/courses/${course.id}/learn`}
+                    className="block w-full py-3 bg-green-600 text-white rounded-lg font-semibold text-center hover:bg-green-700 transition-colors"
+                  >
+                    Continue learning
                   </Link>
                 ) : course.price > 0 ? (
                   <RazorpayCheckout
@@ -215,7 +246,7 @@ export default function CourseDetailPage() {
                     >
                       <span className="font-medium text-slate-800">{section.title}</span>
                       <div className="flex items-center gap-2">
-                        <span className="text-xs text-slate-500">{section.lessons.length} lessons</span>
+                        <span className="text-xs text-slate-500">{sectionLessonCount(section)} lessons</span>
                         {expandedSections.has(section.id) ? (
                           <ChevronUp className="w-4 h-4 text-slate-400" />
                         ) : (
@@ -225,20 +256,81 @@ export default function CourseDetailPage() {
                     </button>
                     {expandedSections.has(section.id) && (
                       <div className="divide-y divide-slate-100">
-                        {section.lessons.map((lesson) => (
-                          <div key={lesson.id} className="flex items-center justify-between px-5 py-3 text-sm">
-                            <div className="flex items-center gap-2">
-                              <span className="text-slate-500">
-                                {lesson.type === 'video' ? '▶' : lesson.type === 'document' ? '📄' : '❓'}
-                              </span>
-                              <span className="text-slate-700">{lesson.title}</span>
-                              {lesson.isPreview && (
-                                <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded">Preview</span>
+                        {section.subsections?.length ? (
+                          section.subsections.map((sub) => (
+                            <div key={sub.id} className="border-b border-slate-100 last:border-b-0">
+                              <button
+                                type="button"
+                                onClick={() => toggleSubsection(sub.id)}
+                                className="w-full flex items-center justify-between px-5 py-3 pl-6 bg-slate-100/90 hover:bg-slate-100 transition-colors text-left border-b border-slate-200/80"
+                              >
+                                <div className="min-w-0 pr-2">
+                                  <span className="text-xs font-semibold text-primary uppercase tracking-wide">Subsection</span>
+                                  <span className="text-sm font-medium text-slate-800 ml-2">{sub.title}</span>
+                                </div>
+                                <div className="flex items-center gap-2 shrink-0">
+                                  <span className="text-xs text-slate-500">{sub.lessons?.length || 0} lessons</span>
+                                  {expandedSubsections.has(sub.id) ? (
+                                    <ChevronUp className="w-4 h-4 text-slate-400" />
+                                  ) : (
+                                    <ChevronDown className="w-4 h-4 text-slate-400" />
+                                  )}
+                                </div>
+                              </button>
+                              {expandedSubsections.has(sub.id) && (
+                                <div className="divide-y divide-slate-100 bg-white">
+                                  {(sub.lessons || []).map((lesson) => (
+                                    <div key={lesson.id} className="flex items-center justify-between px-5 py-3 pl-9 text-sm">
+                                      <div className="flex items-center gap-2 min-w-0 flex-1">
+                                        <span className="text-slate-500 shrink-0">
+                                          {lesson.type === 'video' ? '▶' : lesson.type === 'document' ? '📄' : '❓'}
+                                        </span>
+                                        {lesson.isPreview || enrolled ? (
+                                          <Link
+                                            href={`/courses/${course.id}/learn/${lesson.id}`}
+                                            className="text-slate-700 hover:text-primary font-medium truncate"
+                                          >
+                                            {lesson.title}
+                                          </Link>
+                                        ) : (
+                                          <span className="text-slate-700 truncate">{lesson.title}</span>
+                                        )}
+                                        {lesson.isPreview && (
+                                          <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded shrink-0">Preview</span>
+                                        )}
+                                      </div>
+                                      <span className="text-slate-400 text-xs shrink-0 ml-2">{lesson.duration}</span>
+                                    </div>
+                                  ))}
+                                </div>
                               )}
                             </div>
-                            <span className="text-slate-400 text-xs">{lesson.duration}</span>
-                          </div>
-                        ))}
+                          ))
+                        ) : (
+                          (section.lessons || []).map((lesson) => (
+                            <div key={lesson.id} className="flex items-center justify-between px-5 py-3 text-sm">
+                              <div className="flex items-center gap-2 min-w-0 flex-1">
+                                <span className="text-slate-500 shrink-0">
+                                  {lesson.type === 'video' ? '▶' : lesson.type === 'document' ? '📄' : '❓'}
+                                </span>
+                                {lesson.isPreview || enrolled ? (
+                                  <Link
+                                    href={`/courses/${course.id}/learn/${lesson.id}`}
+                                    className="text-slate-700 hover:text-primary font-medium truncate"
+                                  >
+                                    {lesson.title}
+                                  </Link>
+                                ) : (
+                                  <span className="text-slate-700 truncate">{lesson.title}</span>
+                                )}
+                                {lesson.isPreview && (
+                                  <span className="px-1.5 py-0.5 bg-primary/10 text-primary text-xs rounded shrink-0">Preview</span>
+                                )}
+                              </div>
+                              <span className="text-slate-400 text-xs shrink-0 ml-2">{lesson.duration}</span>
+                            </div>
+                          ))
+                        )}
                       </div>
                     )}
                   </div>

@@ -3,13 +3,17 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { createOrder } from '@/lib/razorpay'
+import { resolveSessionUserId } from '@/lib/session-user'
+import { hasQuizAccessViaCourseEnrollment } from '@/lib/quiz-course-access'
 
 export async function POST(request: NextRequest) {
   try {
     const session = await getServerSession(authOptions)
-    if (!session?.user?.id) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
+    const authUser = await resolveSessionUserId(session)
+    if ('error' in authUser) {
+      return NextResponse.json({ error: authUser.error }, { status: authUser.status })
     }
+    const { userId } = authUser
 
     const body = await request.json()
     const { entityType, entityId } = body
@@ -26,7 +30,7 @@ export async function POST(request: NextRequest) {
       if (!course.isPublished) return NextResponse.json({ error: 'Course is not available' }, { status: 403 })
 
       const existing = await prisma.enrollment.findUnique({
-        where: { userId_courseId: { userId: session.user.id, courseId: entityId } },
+        where: { userId_courseId: { userId, courseId: entityId } },
       })
       if (existing) return NextResponse.json({ error: 'Already enrolled in this course' }, { status: 400 })
 
@@ -38,9 +42,19 @@ export async function POST(request: NextRequest) {
       if (!quiz.isPublished) return NextResponse.json({ error: 'Quiz is not available' }, { status: 403 })
 
       const existing = await prisma.quizEnrollment.findUnique({
-        where: { userId_quizId: { userId: session.user.id, quizId: entityId } },
+        where: { userId_quizId: { userId, quizId: entityId } },
       })
       if (existing) return NextResponse.json({ error: 'Already enrolled in this quiz' }, { status: 400 })
+
+      if (await hasQuizAccessViaCourseEnrollment(userId, entityId)) {
+        return NextResponse.json(
+          {
+            error:
+              'This quiz is included in a course you are enrolled in. Open the quiz page and start it there — no separate payment is needed.',
+          },
+          { status: 400 }
+        )
+      }
 
       amount = quiz.price
       title = quiz.title
@@ -50,7 +64,7 @@ export async function POST(request: NextRequest) {
       if (!mockTest.isPublished) return NextResponse.json({ error: 'Mock test is not available' }, { status: 403 })
 
       const existing = await prisma.mockTestEnrollment.findUnique({
-        where: { userId_mockTestId: { userId: session.user.id, mockTestId: entityId } },
+        where: { userId_mockTestId: { userId, mockTestId: entityId } },
       })
       if (existing) return NextResponse.json({ error: 'Already enrolled in this mock test' }, { status: 400 })
 
@@ -69,7 +83,7 @@ export async function POST(request: NextRequest) {
 
     await prisma.payment.create({
       data: {
-        userId: session.user.id,
+        userId,
         razorpayOrderId: order.id,
         amount,
         currency: order.currency,

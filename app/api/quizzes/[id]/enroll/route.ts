@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
+import { hasQuizAccessViaCourseEnrollment } from '@/lib/quiz-course-access'
 
 export async function POST(
   request: NextRequest,
@@ -23,7 +24,10 @@ export async function POST(
     }
 
     if (quiz.price > 0) {
-      return NextResponse.json({ error: 'Payment required for this quiz' }, { status: 402 })
+      const viaCourse = await hasQuizAccessViaCourseEnrollment(session.user.id, params.id)
+      if (!viaCourse) {
+        return NextResponse.json({ error: 'Payment required for this quiz' }, { status: 402 })
+      }
     }
 
     const enrollment = await prisma.quizEnrollment.create({
