@@ -650,7 +650,7 @@ export default function CourseFormWizard({
       if (enableDraft) localStorage.removeItem(DRAFT_KEY_CREATE)
       toast.success(mode === 'edit' ? 'Course updated' : 'Course created', {
         description: 'Redirecting to your courses…',
-        duration: 3000,
+        duration: 3001,
       })
       router.push('/admin/courses')
     } catch {

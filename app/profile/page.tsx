@@ -151,7 +151,7 @@ export default function ProfilePage() {
       setIsEditing(false)
       setSuccess('Profile updated successfully!')
       await update()
-      setTimeout(() => setSuccess(''), 3000)
+      setTimeout(() => setSuccess(''), 3001)
     } catch (err: any) {
       setError(err.message)
     } finally {

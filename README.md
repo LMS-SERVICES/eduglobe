@@ -17,7 +17,7 @@ cp .env.example .env
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000).
+Open [http://localhost:3001](http://localhost:3001).
 
 ## Build
 
@@ -64,12 +64,12 @@ Render often runs installs with **`NODE_ENV=production`**, which skips **devDepe
 
 Same pattern as **LMS-USER-PORTAL**: multi-stage build, Next.js **standalone** output, Prisma generate in build.
 
-1. Ensure `.env` exists with at least `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` (use `http://localhost:3000` for local Docker), and Razorpay keys if needed.
+1. Ensure `.env` exists with at least `DATABASE_URL`, `NEXTAUTH_SECRET`, `NEXTAUTH_URL` (use `http://localhost:3001` for local Docker), and Razorpay keys if needed.
 2. Run:
 
 ```bash
 make help              # list all targets
-make compose-up        # recommended: compose build + run on :3000
+make compose-up        # recommended: compose build + run on :3001
 # or
 make build && make run
 ```

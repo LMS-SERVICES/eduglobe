@@ -7,7 +7,7 @@ SHELL := /bin/bash
 # --- configurable ---
 IMAGE_NAME     ?= eduglobe-academy
 CONTAINER_NAME ?= eduglobe-app
-PORT           ?= 3000
+PORT           ?= 3001
 COMPOSE        ?= docker compose
 COMPOSE_FILE   ?= docker-compose.yml
 
@@ -62,7 +62,7 @@ run: ## Run container with .env (replaces existing $(CONTAINER_NAME))
 		docker rm $(CONTAINER_NAME) 2>/dev/null || true; \
 	fi
 	docker run -d \
-		-p $(PORT):3000 \
+		-p $(PORT):3001 \
 		--env-file .env \
 		--name $(CONTAINER_NAME) \
 		$(IMAGE_NAME)
