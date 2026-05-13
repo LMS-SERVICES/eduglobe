@@ -50,6 +50,7 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
 
     const body = await request.json()
     const updateData: any = {}
+    const hasSectionsPayload = Array.isArray(body.sections)
 
     if (body.title !== undefined) updateData.title = body.title
     if (body.description !== undefined) updateData.description = body.description
@@ -60,19 +61,65 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
     if (body.generateCertificate !== undefined) updateData.generateCertificate = body.generateCertificate
     if (body.isPublished !== undefined) updateData.isPublished = body.isPublished
 
-    const quiz = await prisma.quiz.update({
-      where: { id: params.id },
-      data: updateData,
-      include: {
-        sections: {
-          include: {
-            questions: {
-              include: { options: true },
+    const quiz = await prisma.$transaction(async (tx) => {
+      const top = await tx.quiz.update({
+        where: { id: params.id },
+        data: updateData,
+      })
+
+      if (hasSectionsPayload) {
+        await tx.quizSection.deleteMany({ where: { quizId: params.id } })
+
+        for (let si = 0; si < body.sections.length; si++) {
+          const section = body.sections[si]
+          const sectionRow = await tx.quizSection.create({
+            data: {
+              quizId: params.id,
+              title: section.title,
+              order: si + 1,
             },
-          },
-        },
-      },
-    })
+          })
+
+          for (let qi = 0; qi < (section.questions || []).length; qi++) {
+            const q = section.questions[qi]
+            const opts = Array.isArray(q.options) ? q.options : []
+            const correctOptionIndex = opts.findIndex(
+              (opt: any) =>
+                opt.id === q.correctOptionId ||
+                String(opt.order) === String(q.correctOptionId)
+            )
+            const question = await tx.quizQuestion.create({
+              data: {
+                sectionId: sectionRow.id,
+                question: q.question,
+                questionImageUrl: q.questionImageUrl || null,
+                marks: Number(q.marks || 1),
+                order: qi + 1,
+                options: {
+                  create: opts.map((opt: any, oi: number) => ({
+                    option: opt.option,
+                    imageUrl: opt.imageUrl || null,
+                    order: Number.isFinite(Number(opt.order)) ? Number(opt.order) : oi,
+                  })),
+                },
+              },
+              include: { options: true },
+            })
+
+            const sortedOptions = [...question.options].sort((a, b) => a.order - b.order)
+            const correctOption = sortedOptions[correctOptionIndex]
+            if (correctOption) {
+              await tx.quizQuestion.update({
+                where: { id: question.id },
+                data: { correctOptionId: correctOption.id },
+              })
+            }
+          }
+        }
+      }
+
+      return top
+    }, { maxWait: 15_000, timeout: 120_000 })
 
     return NextResponse.json(quiz)
   } catch (error) {

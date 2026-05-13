@@ -20,14 +20,18 @@ const quizSchema = z.object({
       questions: z.array(
         z.object({
           question: z.string().min(1),
+          questionImageUrl: z.string().optional().nullable(),
           correctOptionId: z.string().min(1),
           marks: z.number().min(1).default(1),
           order: z.number().default(0),
           options: z.array(
             z.object({
               id: z.string().optional(),
-              option: z.string().min(1),
+              option: z.string().default(''),
+              imageUrl: z.string().optional().nullable(),
               order: z.number().default(0),
+            }).refine((option) => option.option.trim() || option.imageUrl, {
+              message: 'Each option must have text or an image',
             })
           ).min(2),
         })
@@ -120,9 +124,16 @@ export async function POST(request: NextRequest) {
                   data: {
                     sectionId: newSection.id,
                     question: q.question,
+                    questionImageUrl: q.questionImageUrl || null,
                     marks: q.marks,
                     order: q.order,
-                    options: { create: q.options.map((opt) => ({ option: opt.option, order: opt.order })) },
+                    options: {
+                      create: q.options.map((opt) => ({
+                        option: opt.option,
+                        imageUrl: opt.imageUrl || null,
+                        order: opt.order,
+                      })),
+                    },
                   },
                   include: { options: true },
                 })

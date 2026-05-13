@@ -83,8 +83,9 @@ export async function POST(request: NextRequest) {
                 negativeMarks: Number(q.negativeMarks || 0),
                 order: qi + 1,
                 options: {
-                  create: opts.map((opt: { option: string }, oi: number) => ({
+                  create: opts.map((opt: { option: string; imageUrl?: string }, oi: number) => ({
                     option: opt.option,
+                    imageUrl: opt.imageUrl || null,
                     order: oi,
                   })),
                 },

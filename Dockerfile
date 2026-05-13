@@ -5,8 +5,11 @@ WORKDIR /app
 # Install dependencies needed for native modules and Prisma
 RUN apk add --no-cache libc6-compat openssl
 
-# Copy package files first to leverage cache
+# Copy package files and Prisma schema first to leverage cache.
+# npm ci runs the package postinstall (prisma generate), so schema.prisma
+# must already exist in this stage.
 COPY package.json package-lock.json* ./
+COPY prisma ./prisma
 
 # Install dependencies
 RUN npm ci

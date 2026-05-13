@@ -51,7 +51,7 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
       answerRows.push({
         enrollmentId: enrollment.id,
         questionId: q.id,
-        answer: selected?.option || '',
+        answer: selected?.option || selected?.id || '',
         isCorrect,
         marksObtained,
       })
@@ -66,9 +66,13 @@ export async function POST(request: NextRequest, { params }: { params: { id: str
         negativeMarks: q.negativeMarks,
         selectedOptionId: userAnswer?.optionId || null,
         correctOptionId: q.correctOptionId || null,
-        options: q.options.map((o: any) => ({ id: o.id, option: o.option })),
-        selectedAnswer: selected?.option || null,
-        correctAnswer: correct?.option || null,
+        options: q.options.map((o: any) => ({
+          id: o.id,
+          option: o.option,
+          imageUrl: o.imageUrl || null,
+        })),
+        selectedAnswer: selected?.option || (selected?.imageUrl ? 'Image option' : null),
+        correctAnswer: correct?.option || (correct?.imageUrl ? 'Image option' : null),
         isCorrect,
         marksObtained,
       })

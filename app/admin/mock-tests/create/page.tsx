@@ -4,8 +4,9 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import RichTextEditor from '@/components/RichTextEditor'
+import { uploadFileToApi } from '@/lib/upload-client'
 
-type Option = { option: string }
+type Option = { option: string; imageUrl: string }
 type Question = { question: string; questionImageUrl: string; marks: number; negativeMarks: number; correctOptionIndex: number; options: Option[] }
 type Section = { title: string; questions: Question[] }
 type FormState = {
@@ -25,7 +26,7 @@ const newQuestion = (): Question => ({
   marks: 1,
   negativeMarks: 0,
   correctOptionIndex: 0,
-  options: [{ option: '' }, { option: '' }, { option: '' }, { option: '' }],
+  options: [{ option: '', imageUrl: '' }, { option: '', imageUrl: '' }, { option: '', imageUrl: '' }, { option: '', imageUrl: '' }],
 })
 
 const DRAFT_KEY = 'admin-create-mock-test-draft-v1'
@@ -34,6 +35,9 @@ export default function CreateMockTestPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [uploadingThumb, setUploadingThumb] = useState(false)
+  const [uploadingQuestionImg, setUploadingQuestionImg] = useState<string | null>(null)
+  const [uploadingOptionImg, setUploadingOptionImg] = useState<string | null>(null)
   const [currentStep, setCurrentStep] = useState(1)
   const [draftLoaded, setDraftLoaded] = useState(false)
   const [form, setForm] = useState<FormState>({
@@ -105,7 +109,7 @@ export default function CreateMockTestPage() {
         s.questions.every((q) =>
           q.question.trim() &&
           q.options.length >= 2 &&
-          q.options.every((o) => o.option.trim())
+          q.options.every((o) => o.option.trim() || o.imageUrl.trim())
         )
       )
     }
@@ -205,8 +209,36 @@ export default function CreateMockTestPage() {
               <p className="text-xs text-gray-500 mt-1">Rich text enabled for instructions.</p>
             </div>
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Thumbnail URL (optional)</label>
-              <input className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded text-white" placeholder="https://example.com/mock-test-banner.jpg" value={form.thumbnail} onChange={(e) => setForm({ ...form, thumbnail: e.target.value })} />
+              <label className="block text-sm font-medium text-gray-300 mb-1">Thumbnail (optional)</label>
+              <p className="text-xs text-gray-500 mb-2">Upload an image, or paste a link below.</p>
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploadingThumb}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setUploadingThumb(true)
+                    uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+                      .then(({ url }) => setForm((p) => ({ ...p, thumbnail: url })))
+                      .catch((err: any) => setError(err?.message || 'Thumbnail upload failed'))
+                      .finally(() => setUploadingThumb(false))
+                    e.currentTarget.value = ''
+                  }}
+                  className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary file:text-white hover:file:bg-primary-light disabled:opacity-60"
+                />
+                {uploadingThumb && <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>}
+              </div>
+              <details className="mt-3 rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+                <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste image link instead</summary>
+                <input
+                  className="w-full mt-2 px-4 py-2 bg-dark-900 border border-dark-700 rounded text-white"
+                  placeholder="https://…"
+                  value={form.thumbnail}
+                  onChange={(e) => setForm({ ...form, thumbnail: e.target.value })}
+                />
+              </details>
             </div>
             <div className="grid md:grid-cols-4 gap-3">
               <div>
@@ -252,12 +284,47 @@ export default function CreateMockTestPage() {
                       }} placeholder="Enter the full question text" />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium text-gray-300 mb-1">Question Image URL (optional)</label>
-                      <input className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded text-white" value={q.questionImageUrl} onChange={(e) => {
-                        const u = [...sections]
-                        u[si].questions[qi].questionImageUrl = e.target.value
-                        setSections(u)
-                      }} placeholder="https://example.com/question-image.png" />
+                      <label className="block text-sm font-medium text-gray-300 mb-1">Question image (optional)</label>
+                      <p className="text-[11px] text-gray-500 mb-1">Upload an image, or paste a link below.</p>
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="file"
+                          accept="image/*"
+                          disabled={uploadingQuestionImg !== null}
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (!file) return
+                            const key = `${si}-${qi}`
+                            setUploadingQuestionImg(key)
+                            uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+                              .then(({ url }) => {
+                                const u = [...sections]
+                                u[si].questions[qi].questionImageUrl = url
+                                setSections(u)
+                              })
+                              .catch((err: any) => setError(err?.message || 'Question image upload failed'))
+                              .finally(() => setUploadingQuestionImg(null))
+                            e.currentTarget.value = ''
+                          }}
+                          className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary/90 file:text-white hover:file:bg-primary disabled:opacity-60"
+                        />
+                        {uploadingQuestionImg === `${si}-${qi}` && (
+                          <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>
+                        )}
+                      </div>
+                      <details className="mt-2 rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+                        <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste image link instead</summary>
+                        <input
+                          className="w-full mt-2 px-4 py-2 bg-dark-900 border border-dark-700 rounded text-white"
+                          value={q.questionImageUrl}
+                          onChange={(e) => {
+                            const u = [...sections]
+                            u[si].questions[qi].questionImageUrl = e.target.value
+                            setSections(u)
+                          }}
+                          placeholder="https://…"
+                        />
+                      </details>
                     </div>
                     <div className="grid md:grid-cols-3 gap-3">
                       <div>
@@ -277,13 +344,57 @@ export default function CreateMockTestPage() {
                     </div>
                     <div className="space-y-2">
                       <p className="text-sm font-medium text-gray-300">Answer Options *</p>
-                      {q.options.map((opt, oi) => (
-                        <input key={oi} className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded text-white" value={opt.option} onChange={(e) => {
-                          const u = [...sections]
-                          u[si].questions[qi].options[oi].option = e.target.value
-                          setSections(u)
-                        }} placeholder={`Option ${oi + 1}`} />
-                      ))}
+                      {q.options.map((opt, oi) => {
+                        const uploadKey = `${si}-${qi}-${oi}`
+                        return (
+                          <div key={oi} className="rounded-lg border border-dark-700 bg-dark-900/50 p-3 space-y-2">
+                            <input className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded text-white" value={opt.option} onChange={(e) => {
+                              const u = [...sections]
+                              u[si].questions[qi].options[oi].option = e.target.value
+                              setSections(u)
+                            }} placeholder={`Option ${oi + 1} text (optional if image uploaded)`} />
+                            <div className="flex items-center gap-3">
+                              <input
+                                type="file"
+                                accept="image/*"
+                                disabled={uploadingOptionImg !== null}
+                                onChange={(e) => {
+                                  const file = e.target.files?.[0]
+                                  if (!file) return
+                                  setUploadingOptionImg(uploadKey)
+                                  uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+                                    .then(({ url }) => {
+                                      const u = [...sections]
+                                      u[si].questions[qi].options[oi].imageUrl = url
+                                      setSections(u)
+                                    })
+                                    .catch((err: any) => setError(err?.message || 'Option image upload failed'))
+                                    .finally(() => setUploadingOptionImg(null))
+                                  e.currentTarget.value = ''
+                                }}
+                                className="block w-full text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-primary/90 file:text-white hover:file:bg-primary disabled:opacity-60"
+                              />
+                              {uploadingOptionImg === uploadKey && <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>}
+                            </div>
+                            {opt.imageUrl && (
+                              <img src={opt.imageUrl} alt="" className="max-h-36 rounded-lg border border-dark-600 bg-dark-900 object-contain" />
+                            )}
+                            <details className="rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+                              <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste option image link instead</summary>
+                              <input
+                                className="w-full mt-2 px-4 py-2 bg-dark-900 border border-dark-700 rounded text-white"
+                                value={opt.imageUrl}
+                                onChange={(e) => {
+                                  const u = [...sections]
+                                  u[si].questions[qi].options[oi].imageUrl = e.target.value
+                                  setSections(u)
+                                }}
+                                placeholder="https://…"
+                              />
+                            </details>
+                          </div>
+                        )
+                      })}
                     </div>
                   </div>
                 ))}

@@ -32,12 +32,12 @@ export async function GET(
     const latestAttempt = await prisma.quizAttempt.findFirst({
       where: { enrollmentId: enrollment.id },
       orderBy: { attemptNumber: 'desc' },
-      select: { attemptNumber: true },
+      select: { attemptNumber: true, review: true },
     })
 
     const review = (enrollment.answers || []).map((a: any) => {
       const correctOption = a.question.options.find((opt: any) => opt.id === a.question.correctOptionId)
-      const selectedOption = a.question.options.find((opt: any) => opt.option === a.answer)
+      const selectedOption = a.question.options.find((opt: any) => opt.option === a.answer || opt.id === a.answer)
       return {
         sectionId: a.question.section.id,
         sectionTitle: a.question.section.title,
@@ -50,9 +50,10 @@ export async function GET(
         options: a.question.options.map((opt: any) => ({
           id: opt.id,
           option: opt.option,
+          imageUrl: opt.imageUrl || null,
         })),
         selectedAnswer: a.answer || null,
-        correctAnswer: correctOption?.option || null,
+        correctAnswer: correctOption?.option || (correctOption?.imageUrl ? 'Image option' : null),
         isCorrect: a.isCorrect,
         marksObtained: a.marksObtained,
       }
@@ -70,7 +71,7 @@ export async function GET(
         attemptNumber: latestAttempt?.attemptNumber || 0,
       },
       passed: (enrollment.percentage || 0) >= 50,
-      review,
+      review: latestAttempt?.review || review,
     })
   } catch (error) {
     console.error('Error checking enrollment:', error)

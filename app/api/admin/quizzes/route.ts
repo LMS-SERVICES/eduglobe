@@ -87,7 +87,11 @@ export async function POST(request: NextRequest) {
                     marks: q.marks,
                     order: q.order,
                     options: {
-                      create: q.options.map((opt: any) => ({ option: opt.option, order: opt.order })),
+                      create: q.options.map((opt: any) => ({
+                        option: opt.option,
+                        imageUrl: opt.imageUrl || null,
+                        order: opt.order,
+                      })),
                     },
                   },
                   include: { options: true },

@@ -7,7 +7,7 @@ import Link from 'next/link'
 import { ArrowLeft, CheckCircle, XCircle } from 'lucide-react'
 import { toastError, toastSuccess } from '@/lib/toast'
 
-interface Option { id: string; option: string }
+interface Option { id: string; option: string; imageUrl?: string | null }
 interface Question { id: string; question: string; questionImageUrl?: string | null; marks: number; options: Option[] }
 interface Section { id: string; title: string; questions: Question[] }
 interface Quiz { id: string; title: string; sections: Section[] }
@@ -20,7 +20,7 @@ interface ReviewItem {
   marks: number
   selectedOptionId: string | null
   correctOptionId: string | null
-  options: { id: string; option: string }[]
+  options: { id: string; option: string; imageUrl?: string | null }[]
   selectedAnswer: string | null
   correctAnswer: string | null
   isCorrect: boolean
@@ -233,6 +233,13 @@ export default function TakeQuizPage() {
                                 <span className="font-semibold mr-2">{String.fromCharCode(65 + optIndex)}.</span>
                                 {opt.option}
                               </span>
+                              {opt.imageUrl && (
+                                <img
+                                  src={opt.imageUrl}
+                                  alt=""
+                                  className="mt-2 max-h-40 rounded border border-slate-200 bg-white object-contain"
+                                />
+                              )}
                               <div className="flex items-center gap-2 text-xs">
                                 {isSelected && (
                                   <span className={`px-2 py-1 rounded ${isCorrect ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
@@ -395,6 +402,13 @@ export default function TakeQuizPage() {
                                 {String.fromCharCode(65 + optIndex)}.
                               </span>
                               {option.option}
+                              {option.imageUrl && (
+                                <img
+                                  src={option.imageUrl}
+                                  alt=""
+                                  className="mt-3 max-h-44 rounded-lg border border-slate-200 bg-white object-contain"
+                                />
+                              )}
                             </span>
                           </label>
                         )

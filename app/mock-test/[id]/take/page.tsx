@@ -6,7 +6,7 @@ import { useSession } from 'next-auth/react'
 import Link from 'next/link'
 import { toastError, toastSuccess, toastWarning } from '@/lib/toast'
 
-interface Option { id: string; option: string }
+interface Option { id: string; option: string; imageUrl?: string | null }
 interface Question { id: string; question: string; questionImageUrl?: string | null; marks: number; negativeMarks: number; options: Option[] }
 interface Section { id: string; title: string; questions: Question[] }
 interface MockTest { id: string; title: string; durationMinutes: number; sections: Section[] }
@@ -224,6 +224,13 @@ export default function TakeMockTestPage() {
                   {(items as any[]).map((item, idx) => (
                     <div key={item.questionId} className={`border rounded-lg p-4 ${item.isCorrect ? 'border-green-200 bg-green-50/60' : 'border-red-200 bg-red-50/60'}`}>
                       <p className="font-medium text-slate-800 mb-2">{idx + 1}. {item.question}</p>
+                      {item.questionImageUrl && (
+                        <img
+                          src={item.questionImageUrl}
+                          alt=""
+                          className="mb-3 max-h-64 rounded-lg border border-slate-200 bg-white object-contain"
+                        />
+                      )}
                       <div className="space-y-2">
                         {(item.options || []).map((opt: any, oi: number) => {
                           const isSelected = item.selectedOptionId === opt.id
@@ -231,6 +238,13 @@ export default function TakeMockTestPage() {
                           return (
                             <div key={opt.id} className={`px-3 py-2 rounded border text-sm ${isCorrect ? 'border-green-300 bg-green-50' : isSelected ? 'border-red-300 bg-red-50' : 'border-slate-200 bg-white'}`}>
                               <span className="font-semibold mr-2">{String.fromCharCode(65 + oi)}.</span>{opt.option}
+                              {opt.imageUrl && (
+                                <img
+                                  src={opt.imageUrl}
+                                  alt=""
+                                  className="mt-2 max-h-40 rounded border border-slate-200 bg-white object-contain"
+                                />
+                              )}
                             </div>
                           )
                         })}
@@ -388,6 +402,13 @@ export default function TakeMockTestPage() {
           {currentQuestion ? (
             <div className="bg-white border border-slate-200 rounded-xl p-5">
               <p className="font-medium text-slate-800">{activeQuestionIndex + 1}. {currentQuestion.question}</p>
+              {currentQuestion.questionImageUrl && (
+                <img
+                  src={currentQuestion.questionImageUrl}
+                  alt=""
+                  className="mt-3 max-h-72 rounded-lg border border-slate-200 bg-white object-contain"
+                />
+              )}
               <p className="text-xs text-slate-500 mt-1">Marks: +{currentQuestion.marks} {currentQuestion.negativeMarks ? `| Negative: -${currentQuestion.negativeMarks}` : ''}</p>
               <div className="mt-3 space-y-2">
                 {currentQuestion.options.map((opt, oi) => (
@@ -398,7 +419,16 @@ export default function TakeMockTestPage() {
                       checked={answers[currentQuestion.id] === opt.id}
                       onChange={() => setAnswers((prev) => ({ ...prev, [currentQuestion.id]: opt.id }))}
                     />
-                    <span className="text-sm text-slate-700"><span className="font-semibold mr-2">{String.fromCharCode(65 + oi)}.</span>{opt.option}</span>
+                    <span className="text-sm text-slate-700">
+                      <span className="font-semibold mr-2">{String.fromCharCode(65 + oi)}.</span>{opt.option}
+                      {opt.imageUrl && (
+                        <img
+                          src={opt.imageUrl}
+                          alt=""
+                          className="mt-2 max-h-44 rounded-lg border border-slate-200 bg-white object-contain"
+                        />
+                      )}
+                    </span>
                   </label>
                 ))}
               </div>

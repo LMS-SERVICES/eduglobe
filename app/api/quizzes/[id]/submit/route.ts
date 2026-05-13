@@ -51,7 +51,7 @@ export async function POST(
       answerRecords.push({
         enrollmentId: enrollment.id,
         questionId: question.id,
-        answer: selectedOption?.option || '',
+        answer: selectedOption?.option || selectedOption?.id || '',
         isCorrect,
         marksObtained,
       })
@@ -68,9 +68,10 @@ export async function POST(
         options: question.options.map((opt: any) => ({
           id: opt.id,
           option: opt.option,
+          imageUrl: opt.imageUrl || null,
         })),
-        selectedAnswer: selectedOption?.option || null,
-        correctAnswer: correctOption?.option || null,
+        selectedAnswer: selectedOption?.option || (selectedOption?.imageUrl ? 'Image option' : null),
+        correctAnswer: correctOption?.option || (correctOption?.imageUrl ? 'Image option' : null),
         isCorrect,
         marksObtained,
       })

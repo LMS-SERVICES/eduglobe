@@ -5,13 +5,14 @@ import { useRouter } from 'next/navigation'
 import { ArrowLeft, Plus, Trash2, Save } from 'lucide-react'
 import Link from 'next/link'
 import RichTextEditor from '@/components/RichTextEditor'
+import { uploadFileToApi } from '@/lib/upload-client'
 
-interface OptionInput { id: string; option: string; order: number }
+interface OptionInput { id: string; option: string; imageUrl: string; order: number }
 interface QuestionInput { question: string; questionImageUrl: string; correctOptionId: string; marks: number; order: number; options: OptionInput[] }
 interface SectionInput { title: string; order: number; questions: QuestionInput[] }
 
 let optionCounter = 0
-const newOption = (): OptionInput => ({ id: `opt-${++optionCounter}`, option: '', order: optionCounter })
+const newOption = (): OptionInput => ({ id: `opt-${++optionCounter}`, option: '', imageUrl: '', order: optionCounter })
 const newQuestion = (): QuestionInput => ({ question: '', questionImageUrl: '', correctOptionId: '', marks: 1, order: 0, options: [newOption(), newOption(), newOption(), newOption()] })
 const QUIZ_DRAFT_KEY = 'admin-create-quiz-draft-v1'
 
@@ -19,6 +20,9 @@ export default function CreateQuizPage() {
   const router = useRouter()
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [uploadingThumb, setUploadingThumb] = useState(false)
+  const [uploadingQuestionImg, setUploadingQuestionImg] = useState<string | null>(null)
+  const [uploadingOptionImg, setUploadingOptionImg] = useState<string | null>(null)
   const [form, setForm] = useState({ title: '', description: '', details: '', thumbnail: '', price: 0, expiryDate: '', generateCertificate: false, isPublished: false })
   const [sections, setSections] = useState<SectionInput[]>([{ title: 'Section 1', order: 1, questions: [newQuestion()] }])
   const [currentStep, setCurrentStep] = useState(1)
@@ -171,8 +175,38 @@ export default function CreateQuizPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Thumbnail URL</label>
-              <input type="url" value={form.thumbnail} onChange={(e) => setForm({ ...form, thumbnail: e.target.value })} className={ic} style={{ backgroundColor: '#0b1220' }} placeholder="https://..." />
+              <label className="block text-sm font-medium text-gray-300 mb-1">Quiz thumbnail</label>
+              <p className="text-xs text-gray-500 mb-2">Upload an image, or paste a link below.</p>
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploadingThumb}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setUploadingThumb(true)
+                    uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+                      .then(({ url }) => setForm((p) => ({ ...p, thumbnail: url })))
+                      .catch((err: any) => setError(err?.message || 'Thumbnail upload failed'))
+                      .finally(() => setUploadingThumb(false))
+                    e.currentTarget.value = ''
+                  }}
+                  className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary file:text-white hover:file:bg-primary-light disabled:opacity-60"
+                />
+                {uploadingThumb && <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>}
+              </div>
+              <details className="mt-3 rounded-lg border border-dark-600 bg-dark-950/60 px-3 py-2">
+                <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste image link instead</summary>
+                <input
+                  type="url"
+                  value={form.thumbnail}
+                  onChange={(e) => setForm({ ...form, thumbnail: e.target.value })}
+                  className={ic}
+                  style={{ backgroundColor: '#0b1220' }}
+                  placeholder="https://…"
+                />
+              </details>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Price (₹)</label>
@@ -217,14 +251,45 @@ export default function CreateQuizPage() {
                     {section.questions.length > 1 && <button type="button" onClick={() => removeQuestion(si, qi)} className="text-red-400 hover:text-red-300"><Trash2 className="w-3 h-3" /></button>}
                   </div>
                   <textarea value={q.question} onChange={(e) => { const u = [...sections]; u[si].questions[qi].question = e.target.value; setSections(u) }} className={ic} style={{ backgroundColor: '#0b1220' }} rows={2} placeholder="Enter question" />
-                  <input
-                    type="url"
-                    value={q.questionImageUrl}
-                    onChange={(e) => { const u = [...sections]; u[si].questions[qi].questionImageUrl = e.target.value; setSections(u) }}
-                    className={ic}
-                    style={{ backgroundColor: '#0b1220' }}
-                    placeholder="Question Image URL (optional, useful for math diagrams)"
-                  />
+                  <label className="block text-xs text-gray-400 mb-1">Question image (optional)</label>
+                  <p className="text-[11px] text-gray-500 mb-1">Upload a diagram or image, or paste a link below.</p>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      disabled={uploadingQuestionImg !== null}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (!file) return
+                        const key = `${si}-${qi}`
+                        setUploadingQuestionImg(key)
+                        uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+                          .then(({ url }) => {
+                            const u = [...sections]
+                            u[si].questions[qi].questionImageUrl = url
+                            setSections(u)
+                          })
+                          .catch((err: any) => setError(err?.message || 'Question image upload failed'))
+                          .finally(() => setUploadingQuestionImg(null))
+                        e.currentTarget.value = ''
+                      }}
+                      className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary/90 file:text-white hover:file:bg-primary disabled:opacity-60"
+                    />
+                    {uploadingQuestionImg === `${si}-${qi}` && (
+                      <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>
+                    )}
+                  </div>
+                  <details className="mt-2 rounded-lg border border-dark-600 bg-dark-950/60 px-3 py-2">
+                    <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste image link instead</summary>
+                    <input
+                      type="url"
+                      value={q.questionImageUrl}
+                      onChange={(e) => { const u = [...sections]; u[si].questions[qi].questionImageUrl = e.target.value; setSections(u) }}
+                      className={`${ic} mt-2`}
+                      style={{ backgroundColor: '#0b1220' }}
+                      placeholder="https://…"
+                    />
+                  </details>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
                       <label className="block text-xs text-gray-400 mb-1">Marks</label>
@@ -257,13 +322,55 @@ export default function CreateQuizPage() {
                     </div>
                   </div>
                   <div className="space-y-2">
-                    {q.options.map((opt, oi) => (
-                      <div key={opt.id} className="flex gap-2 items-center">
-                        <span className={`text-xs w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${q.correctOptionId === opt.id ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-dark-700 text-gray-400'}`}>{String.fromCharCode(65 + oi)}</span>
-                        <input type="text" value={opt.option} onChange={(e) => { const u = [...sections]; u[si].questions[qi].options[oi].option = e.target.value; setSections(u) }} className={ic} style={{ backgroundColor: '#0b1220' }} placeholder={`Option ${oi + 1}`} />
-                        {q.options.length > 2 && <button type="button" onClick={() => removeOption(si, qi, oi)} className="text-red-400 hover:text-red-300 p-1"><Trash2 className="w-3 h-3" /></button>}
-                      </div>
-                    ))}
+                    {q.options.map((opt, oi) => {
+                      const uploadKey = `${si}-${qi}-${oi}`
+                      return (
+                        <div key={opt.id} className="rounded-lg border border-dark-700 bg-dark-950/40 p-3 space-y-2">
+                          <div className="flex gap-2 items-center">
+                            <span className={`text-xs w-6 h-6 flex items-center justify-center rounded-full flex-shrink-0 ${q.correctOptionId === opt.id ? 'bg-green-500/20 text-green-400 border border-green-500/30' : 'bg-dark-700 text-gray-400'}`}>{String.fromCharCode(65 + oi)}</span>
+                            <input type="text" value={opt.option} onChange={(e) => { const u = [...sections]; u[si].questions[qi].options[oi].option = e.target.value; setSections(u) }} className={ic} style={{ backgroundColor: '#0b1220' }} placeholder={`Option ${oi + 1} text (optional if image uploaded)`} />
+                            {q.options.length > 2 && <button type="button" onClick={() => removeOption(si, qi, oi)} className="text-red-400 hover:text-red-300 p-1"><Trash2 className="w-3 h-3" /></button>}
+                          </div>
+                          <div className="flex items-center gap-3 pl-8">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              disabled={uploadingOptionImg !== null}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+                                setUploadingOptionImg(uploadKey)
+                                uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+                                  .then(({ url }) => {
+                                    const u = [...sections]
+                                    u[si].questions[qi].options[oi].imageUrl = url
+                                    setSections(u)
+                                  })
+                                  .catch((err: any) => setError(err?.message || 'Option image upload failed'))
+                                  .finally(() => setUploadingOptionImg(null))
+                                e.currentTarget.value = ''
+                              }}
+                              className="block w-full text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-primary/90 file:text-white hover:file:bg-primary disabled:opacity-60"
+                            />
+                            {uploadingOptionImg === uploadKey && <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>}
+                          </div>
+                          {opt.imageUrl && (
+                            <img src={opt.imageUrl} alt="" className="ml-8 max-h-36 rounded-lg border border-dark-600 bg-dark-900 object-contain" />
+                          )}
+                          <details className="ml-8 rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+                            <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste option image link instead</summary>
+                            <input
+                              type="url"
+                              value={opt.imageUrl}
+                              onChange={(e) => { const u = [...sections]; u[si].questions[qi].options[oi].imageUrl = e.target.value; setSections(u) }}
+                              className={`${ic} mt-2`}
+                              style={{ backgroundColor: '#0b1220' }}
+                              placeholder="https://…"
+                            />
+                          </details>
+                        </div>
+                      )
+                    })}
                     <button type="button" onClick={() => addOption(si, qi)} className="text-primary-400 hover:text-primary-300 text-xs flex items-center gap-1"><Plus className="w-3 h-3" /> Add Option</button>
                   </div>
                 </div>

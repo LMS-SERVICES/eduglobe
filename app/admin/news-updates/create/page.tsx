@@ -4,11 +4,13 @@ import { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Save } from 'lucide-react'
+import { uploadFileToApi } from '@/lib/upload-client'
 
 export default function CreateNewsUpdatePage() {
   const router = useRouter()
   const [submitting, setSubmitting] = useState(false)
   const [error, setError] = useState('')
+  const [uploadingCover, setUploadingCover] = useState(false)
   const [formData, setFormData] = useState({
     title: '',
     excerpt: '',
@@ -89,9 +91,37 @@ export default function CreateNewsUpdatePage() {
             className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary/50" rows={10} />
         </div>
         <div>
-          <label className="block text-sm font-medium text-gray-300 mb-2">Cover Image URL</label>
-          <input type="url" value={formData.coverImage} onChange={(e) => setFormData({ ...formData, coverImage: e.target.value })}
-            className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary/50" />
+          <label className="block text-sm font-medium text-gray-300 mb-2">Cover image</label>
+          <p className="text-xs text-gray-500 mb-2">Upload an image for the post header, or paste a link below.</p>
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploadingCover}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                setUploadingCover(true)
+                uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+                  .then(({ url }) => setFormData((p) => ({ ...p, coverImage: url })))
+                  .catch((err: any) => setError(err?.message || 'Cover upload failed'))
+                  .finally(() => setUploadingCover(false))
+                e.currentTarget.value = ''
+              }}
+              className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary file:text-white hover:file:bg-primary-light disabled:opacity-60"
+            />
+            {uploadingCover && <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>}
+          </div>
+          <details className="mt-3 rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+            <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste image link instead</summary>
+            <input
+              type="url"
+              value={formData.coverImage}
+              onChange={(e) => setFormData({ ...formData, coverImage: e.target.value })}
+              className="w-full mt-2 px-4 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
+              placeholder="https://…"
+            />
+          </details>
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-300">
           <input type="checkbox" checked={formData.isPublished} onChange={(e) => setFormData({ ...formData, isPublished: e.target.checked })} className="rounded border-dark-700" />

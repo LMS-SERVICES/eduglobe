@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Save } from 'lucide-react'
+import { uploadFileToApi } from '@/lib/upload-client'
 
 interface Category { id: string; name: string }
 
@@ -20,6 +21,8 @@ export default function EditPreviousPaperPage({ params }: { params: { id: string
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [uploadingCover, setUploadingCover] = useState(false)
+  const [uploadingPaper, setUploadingPaper] = useState(false)
   const [form, setForm] = useState({
     title: '',
     categoryId: '',
@@ -96,7 +99,7 @@ export default function EditPreviousPaperPage({ params }: { params: { id: string
         <Link href="/admin/previous-papers" className="text-gray-400 hover:text-white"><ArrowLeft className="w-6 h-6" /></Link>
         <div>
           <h1 className="text-3xl font-bold text-white">Edit Previous Paper</h1>
-          <p className="mt-1 text-gray-400">Update paper details, image, and links</p>
+          <p className="mt-1 text-gray-400">Upload new files or paste links for cover and paper.</p>
         </div>
       </div>
       <form onSubmit={submit} className="bg-dark-800 rounded-xl border border-dark-700 p-6 space-y-4">
@@ -131,12 +134,71 @@ export default function EditPreviousPaperPage({ params }: { params: { id: string
           <textarea rows={4} value={form.description} onChange={(e) => setForm({ ...form, description: e.target.value })} className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white" />
         </div>
         <div>
-          <label className="block text-sm text-gray-300 mb-2">Cover Image URL</label>
-          <input type="url" value={form.coverImageUrl} onChange={(e) => setForm({ ...form, coverImageUrl: e.target.value })} className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white" />
+          <label className="block text-sm text-gray-300 mb-2">Cover image</label>
+          <p className="text-xs text-gray-500 mb-2">Upload a new cover, or paste a link below.</p>
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              accept="image/*"
+              disabled={uploadingCover}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                setUploadingCover(true)
+                uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+                  .then(({ url }) => setForm((p) => ({ ...p, coverImageUrl: url })))
+                  .catch((err: any) => setError(err?.message || 'Cover upload failed'))
+                  .finally(() => setUploadingCover(false))
+                e.currentTarget.value = ''
+              }}
+              className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary file:text-white hover:file:bg-primary-light disabled:opacity-60"
+            />
+            {uploadingCover && <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>}
+          </div>
+          <details className="mt-3 rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+            <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste cover image link instead</summary>
+            <input
+              type="url"
+              value={form.coverImageUrl}
+              onChange={(e) => setForm({ ...form, coverImageUrl: e.target.value })}
+              className="w-full mt-2 px-4 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white"
+              placeholder="https://…"
+            />
+          </details>
         </div>
         <div>
-          <label className="block text-sm text-gray-300 mb-2">Paper URL</label>
-          <input type="url" value={form.paperUrl} onChange={(e) => setForm({ ...form, paperUrl: e.target.value })} className="w-full px-4 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white" />
+          <label className="block text-sm text-gray-300 mb-2">Paper file</label>
+          <p className="text-xs text-gray-500 mb-2">Upload a new paper, or paste a link below.</p>
+          <div className="flex items-center gap-3">
+            <input
+              type="file"
+              accept=".pdf,.png,.jpg,.jpeg,.webp"
+              disabled={uploadingPaper}
+              onChange={(e) => {
+                const file = e.target.files?.[0]
+                if (!file) return
+                setUploadingPaper(true)
+                const endpoint = file.type.startsWith('image/') ? '/api/upload/thumbnail' : '/api/upload/document'
+                uploadFileToApi({ endpoint, file })
+                  .then(({ url }) => setForm((p) => ({ ...p, paperUrl: url })))
+                  .catch((err: any) => setError(err?.message || 'Paper upload failed'))
+                  .finally(() => setUploadingPaper(false))
+                e.currentTarget.value = ''
+              }}
+              className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary file:text-white hover:file:bg-primary-light disabled:opacity-60"
+            />
+            {uploadingPaper && <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>}
+          </div>
+          <details className="mt-3 rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+            <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste paper link instead</summary>
+            <input
+              type="url"
+              value={form.paperUrl}
+              onChange={(e) => setForm({ ...form, paperUrl: e.target.value })}
+              className="w-full mt-2 px-4 py-2 bg-dark-900 border border-dark-700 rounded-lg text-white"
+              placeholder="https://…"
+            />
+          </details>
         </div>
         <label className="flex items-center gap-2 text-sm text-gray-300">
           <input type="checkbox" checked={form.isLatest} onChange={(e) => setForm({ ...form, isLatest: e.target.checked })} />

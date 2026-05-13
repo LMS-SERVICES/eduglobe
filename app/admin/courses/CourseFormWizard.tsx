@@ -6,6 +6,7 @@ import { toast } from '@/lib/toast'
 import { ArrowLeft, Plus, Trash2, Save, ChevronLeft, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import RichTextEditor from '@/components/RichTextEditor'
+import { uploadFileToApi } from '@/lib/upload-client'
 
 interface Category {
   id: string
@@ -345,6 +346,8 @@ export default function CourseFormWizard({
   const [validatingStep, setValidatingStep] = useState(false)
   const [courseLoading, setCourseLoading] = useState(mode === 'edit')
   const [loadError, setLoadError] = useState('')
+  const [uploadingThumbnail, setUploadingThumbnail] = useState(false)
+  const [uploadingLessonMedia, setUploadingLessonMedia] = useState<string | null>(null)
 
   const steps = [
     { id: 1, title: 'Basic Info' },
@@ -476,7 +479,7 @@ export default function CourseFormWizard({
       if (!richTextHasContent(form.descriptionFull)) {
         return 'Full description must include some real text (an empty editor is not enough).'
       }
-      if (!isValidHttpUrl(form.thumbnail)) return 'Enter a valid thumbnail URL (https://…).'
+      if (!isValidHttpUrl(form.thumbnail)) return 'Upload a course thumbnail or add a valid image link under “Paste link instead”.'
       if (!form.categoryId?.trim()) return 'Select a category.'
       return null
     }
@@ -510,10 +513,10 @@ export default function CourseFormWizard({
               return `In "${subLabel}": enter a title for lesson ${li + 1}.`
             }
             if (lesson.type === 'video' && !isValidHttpUrl(lesson.videoUrl)) {
-              return `Lesson "${lesson.title.trim()}": enter a valid video URL (https://…).`
+              return `Lesson "${lesson.title.trim()}": upload a video file or paste a valid video link.`
             }
             if (lesson.type === 'document' && !isValidHttpUrl(lesson.documentUrl)) {
-              return `Lesson "${lesson.title.trim()}": enter a valid document URL (https://…).`
+              return `Lesson "${lesson.title.trim()}": upload a document or paste a valid file link.`
             }
             if (lesson.type === 'quiz' && !lesson.quizId?.trim()) {
               return `Lesson "${lesson.title.trim()}": select a quiz from the list.`
@@ -671,6 +674,46 @@ export default function CourseFormWizard({
     return `${quiz.sections.length} sections, ${questionCount} questions`
   }
 
+  const uploadThumbnail = async (file: File) => {
+    setUploadingThumbnail(true)
+    try {
+      const { url } = await uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+      setForm((prev) => ({ ...prev, thumbnail: url }))
+      toast.success('Thumbnail uploaded')
+    } catch (e: any) {
+      toast.error('Thumbnail upload failed', { description: e?.message || 'Please try again' })
+    } finally {
+      setUploadingThumbnail(false)
+    }
+  }
+
+  const uploadLessonFile = async (params: {
+    sectionIdx: number
+    subIdx: number
+    lessonIdx: number
+    type: 'video' | 'document'
+    file: File
+  }) => {
+    const key = `${params.sectionIdx}-${params.subIdx}-${params.lessonIdx}-${params.type}`
+    setUploadingLessonMedia(key)
+    try {
+      const endpoint = params.type === 'video' ? '/api/upload/video' : '/api/upload/document'
+      const { url } = await uploadFileToApi({ endpoint, file: params.file })
+      setSections((prev) => {
+        const updated = [...prev]
+        const lesson = updated[params.sectionIdx].subsections[params.subIdx].lessons[params.lessonIdx]
+        if (params.type === 'video') lesson.videoUrl = url
+        else lesson.documentUrl = url
+        return updated
+      })
+      toast.success(params.type === 'video' ? 'Video uploaded' : 'Document uploaded')
+    } catch (e: any) {
+      toast.error('Upload failed', { description: e?.message || 'Please try again' })
+    } finally {
+      setUploadingLessonMedia(null)
+    }
+  }
+
   if (mode === 'edit' && courseLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
@@ -772,8 +815,39 @@ export default function CourseFormWizard({
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium text-gray-300 mb-1">Thumbnail URL *</label>
-                <input type="url" required value={form.thumbnail} onChange={(e) => setForm({ ...form, thumbnail: e.target.value })} className={inputClass} />
+                <label className="block text-sm font-medium text-gray-300 mb-1">Course thumbnail *</label>
+                <p className="text-xs text-gray-500 mb-2">Upload an image (JPG, PNG, WebP, GIF — max 5MB), or use a link below.</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploadingThumbnail}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0]
+                      if (file) void uploadThumbnail(file)
+                      e.currentTarget.value = ''
+                    }}
+                    className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary file:text-white hover:file:bg-primary-light disabled:opacity-60"
+                  />
+                  {uploadingThumbnail && <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>}
+                </div>
+                {isValidHttpUrl(form.thumbnail) && (
+                  <img
+                    src={form.thumbnail}
+                    alt=""
+                    className="mt-3 max-h-36 rounded-lg border border-dark-600 object-contain bg-dark-900"
+                  />
+                )}
+                <details className="mt-3 rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+                  <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste image link instead</summary>
+                  <input
+                    type="url"
+                    value={form.thumbnail}
+                    onChange={(e) => setForm({ ...form, thumbnail: e.target.value })}
+                    className={`${inputClass} mt-2`}
+                    placeholder="https://…"
+                  />
+                </details>
               </div>
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1">Category *</label>
@@ -977,33 +1051,93 @@ export default function CourseFormWizard({
                           </select>
 
                           {lesson.type === 'video' && (
-                            <input
-                              type="url"
-                              required
-                              value={lesson.videoUrl || ''}
-                              onChange={(e) => {
-                                const updated = [...sections]
-                                updated[si].subsections[ui].lessons[li].videoUrl = e.target.value
-                                setSections(updated)
-                              }}
-                              className={inputClass}
-                              placeholder="Video URL (required)"
-                            />
+                            <div className="space-y-2">
+                              <label className="block text-xs font-medium text-gray-400">Video *</label>
+                              <p className="text-[11px] text-gray-500">Upload a video file, or paste a URL (e.g. YouTube) below.</p>
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="file"
+                                  accept="video/*"
+                                  disabled={uploadingLessonMedia !== null}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0]
+                                    if (file) {
+                                      void uploadLessonFile({
+                                        sectionIdx: si,
+                                        subIdx: ui,
+                                        lessonIdx: li,
+                                        type: 'video',
+                                        file,
+                                      })
+                                    }
+                                    e.currentTarget.value = ''
+                                  }}
+                                  className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary/90 file:text-white hover:file:bg-primary disabled:opacity-60"
+                                />
+                                {uploadingLessonMedia === `${si}-${ui}-${li}-video` && (
+                                  <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>
+                                )}
+                              </div>
+                              <details className="rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+                                <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste video link instead</summary>
+                                <input
+                                  type="url"
+                                  value={lesson.videoUrl || ''}
+                                  onChange={(e) => {
+                                    const updated = [...sections]
+                                    updated[si].subsections[ui].lessons[li].videoUrl = e.target.value
+                                    setSections(updated)
+                                  }}
+                                  className={`${inputClass} mt-2`}
+                                  placeholder="https://…"
+                                />
+                              </details>
+                            </div>
                           )}
 
                           {lesson.type === 'document' && (
-                            <input
-                              type="url"
-                              required
-                              value={lesson.documentUrl || ''}
-                              onChange={(e) => {
-                                const updated = [...sections]
-                                updated[si].subsections[ui].lessons[li].documentUrl = e.target.value
-                                setSections(updated)
-                              }}
-                              className={inputClass}
-                              placeholder="Document URL (required)"
-                            />
+                            <div className="space-y-2">
+                              <label className="block text-xs font-medium text-gray-400">Document *</label>
+                              <p className="text-[11px] text-gray-500">Upload a PDF or other supported file, or paste a link below.</p>
+                              <div className="flex items-center gap-3">
+                                <input
+                                  type="file"
+                                  accept=".pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.md,.rtf,application/pdf"
+                                  disabled={uploadingLessonMedia !== null}
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0]
+                                    if (file) {
+                                      void uploadLessonFile({
+                                        sectionIdx: si,
+                                        subIdx: ui,
+                                        lessonIdx: li,
+                                        type: 'document',
+                                        file,
+                                      })
+                                    }
+                                    e.currentTarget.value = ''
+                                  }}
+                                  className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary/90 file:text-white hover:file:bg-primary disabled:opacity-60"
+                                />
+                                {uploadingLessonMedia === `${si}-${ui}-${li}-document` && (
+                                  <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>
+                                )}
+                              </div>
+                              <details className="rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+                                <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste document link instead</summary>
+                                <input
+                                  type="url"
+                                  value={lesson.documentUrl || ''}
+                                  onChange={(e) => {
+                                    const updated = [...sections]
+                                    updated[si].subsections[ui].lessons[li].documentUrl = e.target.value
+                                    setSections(updated)
+                                  }}
+                                  className={`${inputClass} mt-2`}
+                                  placeholder="https://…"
+                                />
+                              </details>
+                            </div>
                           )}
 
                           {lesson.type === 'quiz' && (

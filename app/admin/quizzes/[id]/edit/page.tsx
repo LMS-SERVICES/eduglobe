@@ -5,6 +5,18 @@ import { useParams, useRouter } from 'next/navigation'
 import { ArrowLeft, Save } from 'lucide-react'
 import Link from 'next/link'
 import RichTextEditor from '@/components/RichTextEditor'
+import { uploadFileToApi } from '@/lib/upload-client'
+
+type QuizOption = { id: string; option: string; imageUrl: string; order: number }
+type QuizQuestion = {
+  question: string
+  questionImageUrl: string
+  correctOptionId: string
+  marks: number
+  order: number
+  options: QuizOption[]
+}
+type QuizSection = { title: string; order: number; questions: QuizQuestion[] }
 
 export default function EditQuizPage() {
   const { id } = useParams()
@@ -12,8 +24,11 @@ export default function EditQuizPage() {
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
+  const [uploadingThumb, setUploadingThumb] = useState(false)
+  const [uploadingQuestionImg, setUploadingQuestionImg] = useState<string | null>(null)
+  const [uploadingOptionImg, setUploadingOptionImg] = useState<string | null>(null)
   const [form, setForm] = useState({ title: '', description: '', details: '', thumbnail: '', price: 0, expiryDate: '', generateCertificate: false, isPublished: false })
-  const [questionCount, setQuestionCount] = useState(0)
+  const [sections, setSections] = useState<QuizSection[]>([])
 
   useEffect(() => {
     fetch(`/api/admin/quizzes/${id}`)
@@ -29,8 +44,23 @@ export default function EditQuizPage() {
           generateCertificate: data.generateCertificate || false,
           isPublished: data.isPublished || false,
         })
-        const count = data.sections?.reduce((sum: number, s: any) => sum + (s.questions?.length || 0), 0) || 0
-        setQuestionCount(count)
+        setSections((data.sections || []).map((s: any, si: number) => ({
+          title: s.title || `Section ${si + 1}`,
+          order: Number(s.order || si + 1),
+          questions: (s.questions || []).map((q: any, qi: number) => ({
+            question: q.question || '',
+            questionImageUrl: q.questionImageUrl || '',
+            correctOptionId: q.correctOptionId || '',
+            marks: Number(q.marks || 1),
+            order: Number(q.order || qi + 1),
+            options: (q.options || []).map((o: any, oi: number) => ({
+              id: o.id || `opt-${si}-${qi}-${oi}`,
+              option: o.option || '',
+              imageUrl: o.imageUrl || '',
+              order: Number(o.order ?? oi),
+            })),
+          })),
+        })))
       })
       .catch(console.error)
       .finally(() => setLoading(false))
@@ -48,6 +78,15 @@ export default function EditQuizPage() {
           ...form,
           isPublished: forceDraft ? false : form.isPublished,
           expiryDate: form.expiryDate || null,
+          sections: sections.map((section, si) => ({
+            ...section,
+            order: si + 1,
+            questions: section.questions.map((question, qi) => ({
+              ...question,
+              order: qi + 1,
+              options: question.options.map((option, oi) => ({ ...option, order: oi })),
+            })),
+          })),
         }),
       })
       const data = await res.json()
@@ -98,8 +137,37 @@ export default function EditQuizPage() {
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-300 mb-1">Thumbnail URL</label>
-              <input type="url" value={form.thumbnail} onChange={(e) => setForm({ ...form, thumbnail: e.target.value })} className={ic} />
+              <label className="block text-sm font-medium text-gray-300 mb-1">Quiz thumbnail</label>
+              <p className="text-xs text-gray-500 mb-2">Upload an image, or paste a link below.</p>
+              <div className="flex items-center gap-3">
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploadingThumb}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0]
+                    if (!file) return
+                    setUploadingThumb(true)
+                    uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+                      .then(({ url }) => setForm((p) => ({ ...p, thumbnail: url })))
+                      .catch((err: any) => setError(err?.message || 'Thumbnail upload failed'))
+                      .finally(() => setUploadingThumb(false))
+                    e.currentTarget.value = ''
+                  }}
+                  className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary file:text-white hover:file:bg-primary-light disabled:opacity-60"
+                />
+                {uploadingThumb && <span className="text-xs text-gray-400 whitespace-nowrap">Uploading…</span>}
+              </div>
+              <details className="mt-3 rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+                <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste image link instead</summary>
+                <input
+                  type="url"
+                  value={form.thumbnail}
+                  onChange={(e) => setForm({ ...form, thumbnail: e.target.value })}
+                  className={`${ic} mt-2`}
+                  placeholder="https://…"
+                />
+              </details>
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-1">Price (₹)</label>
@@ -120,9 +188,176 @@ export default function EditQuizPage() {
           </div>
         </div>
 
-        <div className="bg-dark-800 rounded-lg border border-dark-700 p-6">
-          <h2 className="text-xl font-semibold text-white mb-2">Questions</h2>
-          <p className="text-gray-400 text-sm">This quiz has {questionCount} questions. Question editing is available during creation.</p>
+        <div className="bg-dark-800 rounded-lg border border-dark-700 p-6 space-y-5">
+          <h2 className="text-xl font-semibold text-white">Questions & Answers</h2>
+          <p className="text-gray-400 text-sm">You can update question images and answer-option images here. Each option may have text, an image, or both.</p>
+          {sections.map((section, si) => (
+            <div key={si} className="rounded-xl border border-dark-700 bg-dark-900/40 p-4 space-y-4">
+              <input
+                value={section.title}
+                onChange={(e) => {
+                  const u = [...sections]
+                  u[si].title = e.target.value
+                  setSections(u)
+                }}
+                className={ic}
+                placeholder={`Section ${si + 1}`}
+              />
+              {section.questions.map((q, qi) => (
+                <div key={qi} className="rounded-lg border border-dark-700 bg-dark-900 p-4 space-y-3">
+                  <p className="text-sm font-semibold text-gray-300">Question {qi + 1}</p>
+                  <textarea
+                    value={q.question}
+                    onChange={(e) => {
+                      const u = [...sections]
+                      u[si].questions[qi].question = e.target.value
+                      setSections(u)
+                    }}
+                    className={ic}
+                    rows={2}
+                    placeholder="Question text"
+                  />
+                  <div className="space-y-2">
+                    <label className="block text-xs font-medium text-gray-400">Question image (optional)</label>
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        disabled={uploadingQuestionImg !== null}
+                        onChange={(e) => {
+                          const file = e.target.files?.[0]
+                          if (!file) return
+                          const key = `${si}-${qi}`
+                          setUploadingQuestionImg(key)
+                          uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+                            .then(({ url }) => {
+                              const u = [...sections]
+                              u[si].questions[qi].questionImageUrl = url
+                              setSections(u)
+                            })
+                            .catch((err: any) => setError(err?.message || 'Question image upload failed'))
+                            .finally(() => setUploadingQuestionImg(null))
+                          e.currentTarget.value = ''
+                        }}
+                        className="block w-full text-sm text-gray-300 file:mr-3 file:py-2 file:px-3 file:rounded-md file:border-0 file:bg-primary/90 file:text-white hover:file:bg-primary disabled:opacity-60"
+                      />
+                      {uploadingQuestionImg === `${si}-${qi}` && <span className="text-xs text-gray-400 whitespace-nowrap">Uploading...</span>}
+                    </div>
+                    {q.questionImageUrl && (
+                      <img src={q.questionImageUrl} alt="" className="max-h-44 rounded-lg border border-dark-600 bg-dark-900 object-contain" />
+                    )}
+                    <details className="rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+                      <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste question image link instead</summary>
+                      <input
+                        type="url"
+                        value={q.questionImageUrl}
+                        onChange={(e) => {
+                          const u = [...sections]
+                          u[si].questions[qi].questionImageUrl = e.target.value
+                          setSections(u)
+                        }}
+                        className={`${ic} mt-2`}
+                        placeholder="https://..."
+                      />
+                    </details>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <input
+                      type="number"
+                      min={1}
+                      value={q.marks}
+                      onChange={(e) => {
+                        const u = [...sections]
+                        u[si].questions[qi].marks = Number(e.target.value || 1)
+                        setSections(u)
+                      }}
+                      className={ic}
+                      placeholder="Marks"
+                    />
+                    <select
+                      value={q.correctOptionId}
+                      onChange={(e) => {
+                        const u = [...sections]
+                        u[si].questions[qi].correctOptionId = e.target.value
+                        setSections(u)
+                      }}
+                      className={ic}
+                    >
+                      <option value="">Select correct option</option>
+                      {q.options.map((opt, oi) => (
+                        <option key={opt.id} value={opt.id}>Option {oi + 1}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-3">
+                    <p className="text-sm font-medium text-gray-300">Answer options</p>
+                    {q.options.map((opt, oi) => {
+                      const uploadKey = `${si}-${qi}-${oi}`
+                      return (
+                        <div key={opt.id} className="rounded-lg border border-dark-700 bg-dark-950/50 p-3 space-y-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs w-6 h-6 flex items-center justify-center rounded-full shrink-0 bg-dark-700 text-gray-400">{String.fromCharCode(65 + oi)}</span>
+                            <input
+                              value={opt.option}
+                              onChange={(e) => {
+                                const u = [...sections]
+                                u[si].questions[qi].options[oi].option = e.target.value
+                                setSections(u)
+                              }}
+                              className={ic}
+                              placeholder={`Option ${oi + 1} text (optional if image uploaded)`}
+                            />
+                          </div>
+                          <div className="flex items-center gap-3 pl-8">
+                            <input
+                              type="file"
+                              accept="image/*"
+                              disabled={uploadingOptionImg !== null}
+                              onChange={(e) => {
+                                const file = e.target.files?.[0]
+                                if (!file) return
+                                setUploadingOptionImg(uploadKey)
+                                uploadFileToApi({ endpoint: '/api/upload/thumbnail', file })
+                                  .then(({ url }) => {
+                                    const u = [...sections]
+                                    u[si].questions[qi].options[oi].imageUrl = url
+                                    setSections(u)
+                                  })
+                                  .catch((err: any) => setError(err?.message || 'Option image upload failed'))
+                                  .finally(() => setUploadingOptionImg(null))
+                                e.currentTarget.value = ''
+                              }}
+                              className="block w-full text-xs text-gray-300 file:mr-3 file:py-1.5 file:px-3 file:rounded-md file:border-0 file:bg-primary/90 file:text-white hover:file:bg-primary disabled:opacity-60"
+                            />
+                            {uploadingOptionImg === uploadKey && <span className="text-xs text-gray-400 whitespace-nowrap">Uploading...</span>}
+                          </div>
+                          {opt.imageUrl && (
+                            <img src={opt.imageUrl} alt="" className="ml-8 max-h-36 rounded-lg border border-dark-600 bg-dark-900 object-contain" />
+                          )}
+                          <details className="ml-8 rounded-lg border border-dark-600 bg-dark-900/50 px-3 py-2">
+                            <summary className="cursor-pointer text-sm text-gray-400 hover:text-gray-300">Paste option image link instead</summary>
+                            <input
+                              type="url"
+                              value={opt.imageUrl}
+                              onChange={(e) => {
+                                const u = [...sections]
+                                u[si].questions[qi].options[oi].imageUrl = e.target.value
+                                setSections(u)
+                              }}
+                              className={`${ic} mt-2`}
+                              placeholder="https://..."
+                            />
+                          </details>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ))}
         </div>
 
         <div className="flex justify-end gap-4">

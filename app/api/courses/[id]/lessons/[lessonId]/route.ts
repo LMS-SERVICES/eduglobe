@@ -3,6 +3,7 @@ import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 import { ensureLessonProgressRows, getFlatCurriculum, neighbors } from '@/lib/course-curriculum'
+import { extractS3KeyFromUrl, presignGetObjectUrl } from '@/lib/s3-helper'
 
 export async function GET(
   _request: NextRequest,
@@ -61,13 +62,35 @@ export async function GET(
       if (row) progress = { completed: row.completed, progress: row.progress }
     }
 
+    let resolvedContent = lesson.content
+    // If lesson content points to an S3 object URL (or we stored a key), return a fresh presigned URL.
+    // This keeps private buckets usable without storing expiring URLs in DB.
+    if (lesson.content && (lesson.type === 'video' || lesson.type === 'document')) {
+      const raw = lesson.content.trim()
+      const key =
+        raw.startsWith('http://') || raw.startsWith('https://')
+          ? extractS3KeyFromUrl(raw)
+          : raw.includes('/') && !raw.includes(' ') // likely "videos/<uuid>.mp4" etc.
+            ? raw
+            : null
+      if (key) {
+        const expiresInSeconds = lesson.type === 'video' ? 3 * 60 * 60 : 7 * 24 * 60 * 60
+        try {
+          resolvedContent = await presignGetObjectUrl({ key, expiresInSeconds })
+        } catch {
+          // fall back to stored value
+          resolvedContent = lesson.content
+        }
+      }
+    }
+
     return NextResponse.json({
       course: { id: course.id, title: course.title },
       lesson: {
         id: lesson.id,
         title: lesson.title,
         description: lesson.description,
-        content: lesson.content,
+        content: resolvedContent,
         duration: lesson.duration,
         type: lesson.type,
         isPreview: lesson.isPreview,
